@@ -1,101 +1,305 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+📁 Project Structure
+ai-stock-platform/
+│
+├── src/
+│   ├── app/
+│   │   ├── dashboard/
+│   │   │   └── page.tsx
+│   │   │
+│   │   ├── stock/
+│   │   │   └── [ticker]/
+│   │   │       └── page.tsx
+│   │   │
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   │
+│   └── lib/
+│       ├── providers/
+│       │   └── market-data/
+│       │       ├── index.ts
+│       │       ├── provider.ts
+│       │       ├── types.ts
+│       │       └── yahoo.ts
+│       │
+│       └── services/
+│           └── stock-service.ts
+│
+├── market-data-service/
+│   ├── app/
+│   │   ├── services/
+│   │   │   └── yahoo_service.py
+│   │   │
+│   │   └── main.py
+│   │
+│   └── requirements.txt
+│
+├── .env.local
+├── .gitignore
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+└── README.md
+📦 Install Dependencies
 
-## Getting Started
+If you clone this project on another device, you need to install the dependencies for both the Next.js frontend and the FastAPI backend.
 
-First, run the development server:
+1. Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Install the following first:
 
-## Install Core Packages
+Node.js 18+
+npm
+Python 3.10+
 
-After creating/cloning the project, install the core packages required for the application:
+Check Node.js:
 
-```bash
+node --version
+
+Check npm:
+
+npm --version
+
+Check Python:
+
+python --version
+2. Install Frontend Dependencies
+
+From the project root:
+
+npm install
+
+This automatically installs all packages listed in:
+
+package.json
+
+and uses:
+
+package-lock.json
+
+to reproduce the correct dependency versions.
+
+Core Frontend Packages
+
+The project uses:
+
 npm install @supabase/ssr @supabase/supabase-js lightweight-charts zod lucide-react date-fns
-```
+Package Purpose
+Package	Purpose
+next	Next.js framework
+react	Frontend UI
+react-dom	React browser rendering
+@supabase/ssr	Supabase SSR integration
+@supabase/supabase-js	Supabase client
+lightweight-charts	Interactive financial charts
+zod	Data/API validation
+lucide-react	UI icons
+date-fns	Date and time utilities
 
-### Packages Installed
-
-| Package                 | Purpose                                                  |
-| ----------------------- | -------------------------------------------------------- |
-| `@supabase/ssr`         | Supabase integration with Next.js SSR and authentication |
-| `@supabase/supabase-js` | Supabase database and authentication client              |
-| `lightweight-charts`    | Interactive stock/candlestick charts                     |
-| `zod`                   | Runtime data and API validation                          |
-| `lucide-react`          | UI icons                                                 |
-| `date-fns`              | Date and time manipulation                               |
-
-### Important
-
-When setting up the project on another device, **do not install these packages individually**.
+Important: When setting up the project on another device, you do not need to install these packages individually.
 
 Simply run:
 
-```bash
 npm install
-```
+3. Install Backend Dependencies
 
-`npm` will automatically install all dependencies listed in `package.json`.
+Go to the market-data service:
 
-The `package-lock.json` file should also be committed to GitHub so that the project can reproduce the correct dependency versions.
+cd market-data-service
 
-Do **not** commit:
+Create a Python virtual environment:
 
-```text
+python -m venv venv
+Windows
+
+Activate:
+
+.\venv\Scripts\Activate.ps1
+macOS / Linux
+source venv/bin/activate
+
+Install all Python dependencies:
+
+pip install -r requirements.txt
+
+The requirements.txt file contains the backend dependencies.
+
+Current core dependencies:
+
+fastapi
+uvicorn
+yfinance
+4. Environment Variables
+
+The .env.local file is intentionally not committed to GitHub because it can contain private credentials.
+
+Create this file in the project root:
+
 .env.local
-node_modules/
-```
 
-These contain local/private configuration and generated dependencies.
+Add:
 
-3. Environment Variables
-
-The .env.local file is intentionally not committed to GitHub because it contains private credentials.
-
-After cloning the project, create:
-
-.env.local
-
-Add the required environment variables:
-
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-
+# Market Data
 MARKET_DATA_PROVIDER=yahoo
+MARKET_DATA_API_URL=http://localhost:8000
+
+
+# AI Providers
 AI_PROVIDER=groq
-NEWS_PROVIDER=free
+
 
 GROQ_API_KEY=
 GEMINI_API_KEY=
 
-Additional API keys will be added as the project develops.
+
+# Supabase - Future
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# News - Future
+NEWS_PROVIDER=free
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Never commit:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+.env
+.env.local
+.env.*.local
+▶️ Running the Project
 
-## Learn More
+The application currently requires two terminals.
 
-To learn more about Next.js, take a look at the following resources:
+Terminal 1 — Next.js Frontend
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+From the project root:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+npm run dev
 
-## Deploy on Vercel
+Frontend:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+http://localhost:3000
+Terminal 2 — FastAPI Market Data Service
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Navigate to:
+
+cd market-data-service
+
+Activate the virtual environment.
+
+Then run:
+
+uvicorn app.main:app --reload --port 8000
+
+Backend:
+
+http://localhost:8000
+📊 Testing the Application
+Frontend
+http://localhost:3000
+Stock Page
+
+Example:
+
+http://localhost:3000/stock/RELIANCE.NS
+
+Other examples:
+
+http://localhost:3000/stock/TCS.NS
+http://localhost:3000/stock/AAPL
+🔌 Market Data API
+
+The FastAPI service currently provides:
+
+GET /api/quote/{ticker}
+
+Example:
+
+http://localhost:8000/api/quote/RELIANCE.NS
+
+The API retrieves stock information using Yahoo Finance through yfinance.
+
+📚 FastAPI Swagger Documentation
+
+FastAPI provides interactive API documentation at:
+
+http://localhost:8000/docs
+
+Use this page to test the market-data API.
+
+🧪 Production Build
+
+Before pushing changes to GitHub, verify the Next.js production build:
+
+npm run build
+
+If successful:
+
+✓ Compiled successfully
+✓ Finished TypeScript
+✓ Generating static pages
+
+Run the production application with:
+
+npm start
+🔌 Provider Architecture
+
+The market-data layer is designed around an abstraction.
+
+                    MarketDataProvider
+                           │
+             ┌─────────────┴─────────────┐
+             │                           │
+       Yahoo Provider              Future Paid Provider
+             │                           │
+         yfinance                  Polygon / Kite
+
+The core application does not directly depend on a specific market-data provider.
+
+This allows future providers to be introduced without rewriting the stock pages or business logic.
+
+💰 $0 Beta Strategy
+
+The initial Beta version is designed to operate with zero out-of-pocket cost.
+
+Service	Beta Provider
+Frontend	Vercel Free
+Source Control	GitHub
+Market Data	Yahoo Finance / yfinance
+Backend	FastAPI
+Database	Supabase Free
+Authentication	Supabase Free
+AI	Groq / Gemini Free Tier
+Charts	Lightweight Charts
+Automation	GitHub Actions / Vercel Cron
+🔄 Future Paid Provider Strategy
+
+The architecture is designed for future provider replacement.
+
+Market Data
+
+Current:
+
+MARKET_DATA_PROVIDER=yahoo
+
+Future:
+
+MARKET_DATA_PROVIDER=polygon
+
+or:
+
+MARKET_DATA_PROVIDER=kite
+AI
+
+Current:
+
+AI_PROVIDER=groq
+
+Future:
+
+AI_PROVIDER=openai
+
+or:
+
+AI_PROVIDER=claude
+
+The goal is to change provider configuration and adapters without rewriting the frontend or core business logic.

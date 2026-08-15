@@ -14,6 +14,49 @@ pnpm dev
 bun dev
 ```
 
+## Install Core Packages
+
+After creating/cloning the project, install the core packages required for the application:
+
+```bash
+npm install @supabase/ssr @supabase/supabase-js lightweight-charts zod lucide-react date-fns
+```
+
+### Packages Installed
+
+| Package                 | Purpose                                                  |
+| ----------------------- | -------------------------------------------------------- |
+| `@supabase/ssr`         | Supabase integration with Next.js SSR and authentication |
+| `@supabase/supabase-js` | Supabase database and authentication client              |
+| `lightweight-charts`    | Interactive stock/candlestick charts                     |
+| `zod`                   | Runtime data and API validation                          |
+| `lucide-react`          | UI icons                                                 |
+| `date-fns`              | Date and time manipulation                               |
+
+### Important
+
+When setting up the project on another device, **do not install these packages individually**.
+
+Simply run:
+
+```bash
+npm install
+```
+
+`npm` will automatically install all dependencies listed in `package.json`.
+
+The `package-lock.json` file should also be committed to GitHub so that the project can reproduce the correct dependency versions.
+
+Do **not** commit:
+
+```text
+.env.local
+node_modules/
+```
+
+These contain local/private configuration and generated dependencies.
+
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.

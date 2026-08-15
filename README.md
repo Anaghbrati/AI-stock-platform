@@ -56,6 +56,28 @@ node_modules/
 
 These contain local/private configuration and generated dependencies.
 
+3. Environment Variables
+
+The .env.local file is intentionally not committed to GitHub because it contains private credentials.
+
+After cloning the project, create:
+
+.env.local
+
+Add the required environment variables:
+
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+MARKET_DATA_PROVIDER=yahoo
+AI_PROVIDER=groq
+NEWS_PROVIDER=free
+
+GROQ_API_KEY=
+GEMINI_API_KEY=
+
+Additional API keys will be added as the project develops.
+
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 

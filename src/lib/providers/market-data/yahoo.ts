@@ -55,10 +55,45 @@ export class YahooFinanceProvider implements MarketDataProvider {
   }
 
   async getFundamentals(
-    ticker: string
-  ): Promise<StockFundamentals> {
-    throw new Error(`Fundamentals not implemented yet: ${ticker}`);
+  ticker: string
+): Promise<StockFundamentals> {
+  const response = await fetch(
+    `${MARKET_DATA_API}/api/fundamentals/${encodeURIComponent(
+      ticker
+    )}`,
+    {
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch fundamentals for ${ticker}`
+    );
   }
+
+  const data = await response.json();
+
+  return {
+    ticker: data.ticker,
+
+    peRatio: data.peRatio,
+    pbRatio: data.pbRatio,
+
+    roe: data.roe,
+    roce: data.roce,
+
+    debtToEquity: data.debtToEquity,
+
+    dividendYield: data.dividendYield,
+
+    freeCashFlow: data.freeCashFlow,
+
+    eps: data.eps,
+
+    marketCap: data.marketCap,
+  };
+}
 
   async searchStocks(
     query: string

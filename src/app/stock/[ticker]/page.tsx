@@ -4,7 +4,10 @@ import AIAnalysis from "../../../components/analysis/AIAnalysis";
 import TechnicalSignal from "../../../components/analysis/TechnicalSignal";
 import StockChartContainer from "../../../components/charts/StockChartContainer";
 
-import { getStockQuote } from "../../../lib/services/stock.service";
+import {
+  getStockQuote,
+  getStockFundamentals,
+} from "../../../lib/services/stock.service";
 
 interface StockPageProps {
   params: Promise<{
@@ -19,24 +22,32 @@ export default async function StockPage({
 
   const normalizedTicker = ticker.toUpperCase();
 
-  // --------------------------------
-  // Stock Quote
-  // --------------------------------
+  // ========================================
+  // STOCK QUOTE
+  // ========================================
 
   const stock = await getStockQuote(
     normalizedTicker
   );
 
-  // --------------------------------
-  // Technical + AI Analysis
-  // --------------------------------
+  // ========================================
+  // STOCK FUNDAMENTALS
+  // ========================================
+
+  const fundamentals =
+    await getStockFundamentals(
+      normalizedTicker
+    );
+
+  // ========================================
+  // TECHNICAL + AI ANALYSIS
+  // ========================================
 
   const baseUrl =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  "http://localhost:3000";
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
 
-const analysisResponse =
-  await fetch(
+  const analysisResponse = await fetch(
     `${baseUrl}/api/analysis/${encodeURIComponent(
       normalizedTicker
     )}`,
@@ -62,9 +73,9 @@ const analysisResponse =
   const analysis =
     await analysisResponse.json();
 
-  // --------------------------------
-  // Safety fallback
-  // --------------------------------
+  // ========================================
+  // SAFETY FALLBACK
+  // ========================================
 
   const technical =
     analysis?.technical ?? {
@@ -86,6 +97,10 @@ const analysisResponse =
       risk: "UNKNOWN",
       keyPoints: [],
     };
+
+  // ========================================
+  // PRICE CHANGE
+  // ========================================
 
   const change =
     stock.changePercent ?? null;
@@ -146,10 +161,12 @@ const analysisResponse =
                 <div className="flex items-center gap-4">
 
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#ff4d61]/10 bg-[#ff4d61]/10 text-lg font-black text-[#ff6678]">
+
                     {getInitials(
                       stock.companyName,
                       normalizedTicker
                     )}
+
                   </div>
 
                   <div>
@@ -202,6 +219,7 @@ const analysisResponse =
                         : "bg-white/[0.04] text-slate-500"
                     }`}
                   >
+
                     {change !== null
                       ? `${
                           isPositive
@@ -211,6 +229,7 @@ const analysisResponse =
                           2
                         )}%`
                       : "N/A"}
+
                   </div>
 
                 </div>
@@ -238,68 +257,83 @@ const analysisResponse =
 
 
         {/* =====================================
-              QUICK STATS
-          ====================================== */}
+            QUICK STATS
+        ====================================== */}
 
-          <section className="mt-6">
+        <section className="mt-6">
 
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 
-              <StatCard
-                label="Volume"
-                value={
-                  stock.volume !== null &&
-                  stock.volume !== undefined
-                    ? stock.volume.toLocaleString("en-IN")
-                    : "N/A"
-                }
-              />
+            {/* Volume */}
 
-              <StatCard
-                label="Market Cap"
-                value={
-                  stock.marketCap !== null &&
-                  stock.marketCap !== undefined
-                    ? formatLargeNumber(
-                        stock.marketCap
-                      )
-                    : "N/A"
-                }
-              />
+            <StatCard
+              label="Volume"
+              value={
+                stock.volume !== null &&
+                stock.volume !== undefined
+                  ? stock.volume.toLocaleString(
+                      "en-IN"
+                    )
+                  : "N/A"
+              }
+            />
 
-              <StatCard
-                label="52W High"
-                value={
-                  stock.fiftyTwoWeekHigh != null
-                    ? `${
-                        stock.currency === "INR"
-                          ? "₹"
-                          : "$"
-                      }${formatPrice(
-                        stock.fiftyTwoWeekHigh
-                      )}`
-                    : "N/A"
-                }
-              />
 
-              <StatCard
-                label="52W Low"
-                value={
-                  stock.fiftyTwoWeekLow != null
-                    ? `${
-                        stock.currency === "INR"
-                          ? "₹"
-                          : "$"
-                      }${formatPrice(
-                        stock.fiftyTwoWeekLow
-                      )}`
-                    : "N/A"
-                }
-              />
+            {/* Market Cap */}
 
-            </div>
+            <StatCard
+              label="Market Cap"
+              value={
+                stock.marketCap !== null &&
+                stock.marketCap !== undefined
+                  ? formatLargeNumber(
+                      stock.marketCap
+                    )
+                  : "N/A"
+              }
+            />
 
-          </section>
+
+            {/* 52 Week High */}
+
+            <StatCard
+              label="52W High"
+              value={
+                stock.fiftyTwoWeekHigh != null
+                  ? `${
+                      stock.currency ===
+                      "INR"
+                        ? "₹"
+                        : "$"
+                    }${formatPrice(
+                      stock.fiftyTwoWeekHigh
+                    )}`
+                  : "N/A"
+              }
+            />
+
+
+            {/* 52 Week Low */}
+
+            <StatCard
+              label="52W Low"
+              value={
+                stock.fiftyTwoWeekLow != null
+                  ? `${
+                      stock.currency ===
+                      "INR"
+                        ? "₹"
+                        : "$"
+                    }${formatPrice(
+                      stock.fiftyTwoWeekLow
+                    )}`
+                  : "N/A"
+              }
+            />
+
+          </div>
+
+        </section>
 
 
         {/* =====================================
@@ -328,6 +362,160 @@ const analysisResponse =
 
             <StockChartContainer
               ticker={normalizedTicker}
+            />
+
+          </div>
+
+        </section>
+
+
+        {/* =====================================
+            FUNDAMENTALS
+        ====================================== */}
+
+        <section className="mt-6">
+
+          <div className="mb-5">
+
+            <p className="text-xs font-medium uppercase tracking-wider text-[#ff6678]">
+              Financial Data
+            </p>
+
+            <h2 className="mt-1 text-2xl font-black">
+              Fundamentals
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-600">
+              Key financial metrics and valuation data.
+            </p>
+
+          </div>
+
+
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+
+            {/* P/E */}
+
+            <FundamentalCard
+              label="P/E Ratio"
+              value={
+                fundamentals.peRatio != null
+                  ? fundamentals.peRatio.toFixed(
+                      2
+                    )
+                  : "N/A"
+              }
+              description="Price / Earnings"
+            />
+
+
+            {/* P/B */}
+
+            <FundamentalCard
+              label="P/B Ratio"
+              value={
+                fundamentals.pbRatio != null
+                  ? fundamentals.pbRatio.toFixed(
+                      2
+                    )
+                  : "N/A"
+              }
+              description="Price / Book"
+            />
+
+
+            {/* ROE */}
+
+            <FundamentalCard
+              label="ROE"
+              value={
+                fundamentals.roe != null
+                  ? `${fundamentals.roe.toFixed(
+                      2
+                    )}%`
+                  : "N/A"
+              }
+              description="Return on Equity"
+            />
+
+
+            {/* Debt / Equity */}
+
+            <FundamentalCard
+              label="Debt / Equity"
+              value={
+                fundamentals.debtToEquity != null
+                  ? fundamentals.debtToEquity.toFixed(
+                      2
+                    )
+                  : "N/A"
+              }
+              description="Financial leverage"
+            />
+
+
+            {/* EPS */}
+
+            <FundamentalCard
+              label="EPS"
+              value={
+                fundamentals.eps != null
+                  ? `${
+                      stock.currency ===
+                      "INR"
+                        ? "₹"
+                        : "$"
+                    }${fundamentals.eps.toFixed(
+                      2
+                    )}`
+                  : "N/A"
+              }
+              description="Earnings per share"
+            />
+
+
+            {/* Dividend Yield */}
+
+            <FundamentalCard
+              label="Dividend Yield"
+              value={
+                fundamentals.dividendYield != null
+                  ? `${fundamentals.dividendYield.toFixed(
+                      2
+                    )}%`
+                  : "N/A"
+              }
+              description="Annual dividend"
+            />
+
+
+            {/* Free Cash Flow */}
+
+            <FundamentalCard
+              label="Free Cash Flow"
+              value={
+                fundamentals.freeCashFlow != null
+                  ? formatLargeNumber(
+                      fundamentals.freeCashFlow
+                    )
+                  : "N/A"
+              }
+              description="Cash after expenses"
+            />
+
+
+            {/* Market Cap */}
+
+            <FundamentalCard
+              label="Market Cap"
+              value={
+                fundamentals.marketCap != null
+                  ? formatLargeNumber(
+                      fundamentals.marketCap
+                    )
+                  : "N/A"
+              }
+              description="Company valuation"
             />
 
           </div>
@@ -455,6 +643,39 @@ const analysisResponse =
       </div>
 
     </main>
+  );
+}
+
+
+/* =========================================
+   FUNDAMENTAL CARD
+========================================= */
+
+function FundamentalCard({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-[#101318] p-5 transition hover:border-white/[0.1]">
+
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+        {label}
+      </p>
+
+      <p className="mt-3 truncate text-xl font-bold text-white">
+        {value}
+      </p>
+
+      <p className="mt-1 text-[11px] text-slate-600">
+        {description}
+      </p>
+
+    </div>
   );
 }
 

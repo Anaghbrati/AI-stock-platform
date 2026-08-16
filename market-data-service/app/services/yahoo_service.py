@@ -88,3 +88,79 @@ class YahooFinanceService:
             "fiftyTwoWeekLow":
                 info.get("fiftyTwoWeekLow"),
         }
+
+
+    # ====================================
+    # FUNDAMENTALS
+    # ====================================
+
+    def get_fundamentals(self, ticker: str):
+        stock = yf.Ticker(ticker)
+        info = stock.info
+
+        if not info:
+            raise ValueError(
+                f"Stock not found: {ticker}"
+            )
+
+        return {
+            "ticker": ticker.upper(),
+
+            # --------------------------------
+            # Valuation
+            # --------------------------------
+
+            "peRatio":
+                info.get("trailingPE"),
+
+            "pbRatio":
+                info.get("priceToBook"),
+
+            # --------------------------------
+            # Profitability
+            # --------------------------------
+
+            "roe": (
+                info.get("returnOnEquity") * 100
+                if info.get("returnOnEquity") is not None
+                else None
+            ),
+
+            # --------------------------------
+            # Financial Health
+            # --------------------------------
+
+            "debtToEquity":
+                info.get("debtToEquity"),
+
+            # --------------------------------
+            # Dividend
+            # --------------------------------
+
+            "dividendYield": (
+                info.get("dividendYield")
+                if info.get("dividendYield") is not None
+                else None
+            ),
+
+            # --------------------------------
+            # Cash Flow
+            # --------------------------------
+
+            "freeCashFlow":
+                info.get("freeCashflow"),
+
+            # --------------------------------
+            # Earnings
+            # --------------------------------
+
+            "eps":
+                info.get("trailingEps"),
+
+            # --------------------------------
+            # Market Cap
+            # --------------------------------
+
+            "marketCap":
+                info.get("marketCap"),
+        }

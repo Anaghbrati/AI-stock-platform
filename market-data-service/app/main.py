@@ -49,6 +49,17 @@ def get_quote(ticker: str):
             detail=str(error),
         )
 
+@app.get("/api/fundamentals/{ticker}")
+def get_fundamentals(ticker: str):
+    try:
+        return yahoo_service.get_fundamentals(ticker)
+
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        )
+
 
 @app.get("/api/historical/{ticker}")
 def historical_data(

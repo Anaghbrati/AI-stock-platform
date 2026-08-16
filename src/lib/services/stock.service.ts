@@ -5,6 +5,13 @@ export async function getStockQuote(ticker: string) {
 
   return provider.getQuote(ticker);
 }
+export async function getStockFundamentals(
+  ticker: string
+) {
+  const provider = getMarketDataProvider();
+
+  return provider.getFundamentals(ticker);
+}
 
 export interface HistoricalData {
   time: string;

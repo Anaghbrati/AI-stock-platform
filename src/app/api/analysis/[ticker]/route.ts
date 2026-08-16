@@ -22,35 +22,32 @@ export async function GET(
   try {
     const { ticker } = await params;
 
-    const normalizedTicker = ticker.toUpperCase();
+    const normalizedTicker =
+      ticker.toUpperCase();
 
     console.log(
       `Generating analysis for ${normalizedTicker}`
     );
 
-    // --------------------------------
-    // 1. Stock Quote
-    // --------------------------------
+    /*
+     * Fetch quote and historical data
+     * simultaneously.
+     */
+    const [stock, historicalData] =
+      await Promise.all([
+        getStockQuote(normalizedTicker),
 
-    const stock = await getStockQuote(
-      normalizedTicker
-    );
+        getHistoricalData(
+          normalizedTicker,
+          "1y",
+          "1d"
+        ),
+      ]);
 
-    // --------------------------------
-    // 2. Historical Data
-    // --------------------------------
-
-    const historicalData =
-      await getHistoricalData(
-        normalizedTicker,
-        "1y",
-        "1d"
-      );
-
-    // --------------------------------
-    // 3. Technical Analysis
-    // --------------------------------
-
+    /*
+     * Calculate technical indicators.
+     * This is local computation, so it is fast.
+     */
     const technicalAnalysis =
       calculateTechnicalSignal(
         historicalData
@@ -61,10 +58,12 @@ export async function GET(
       technicalAnalysis
     );
 
-    // --------------------------------
-    // 4. AI Analysis
-    // --------------------------------
-
+    /*
+     * Generate AI analysis.
+     *
+     * The AI service contains its own
+     * fallback handling.
+     */
     const aiAnalysis =
       await generateAIAnalysis({
         ticker: normalizedTicker,
@@ -91,29 +90,24 @@ export async function GET(
           technicalAnalysis.macdSignal,
 
         macdHistogram:
-          technicalAnalysis.macdHistogram ??
-          null,
+          technicalAnalysis.macdHistogram,
 
         reasons:
           technicalAnalysis.reasons,
       });
 
-    // --------------------------------
-    // 5. Final Response
-    // --------------------------------
-
     return NextResponse.json({
       ticker: normalizedTicker,
 
-      stock: stock,
+      stock,
 
-      technical: technicalAnalysis,
+      technical:
+        technicalAnalysis,
 
-      ai: aiAnalysis,
+      ai:
+        aiAnalysis,
     });
-
   } catch (error) {
-
     console.error(
       "Analysis API error:",
       error
@@ -123,11 +117,6 @@ export async function GET(
       {
         error:
           "Failed to generate stock analysis",
-
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unknown error",
       },
       {
         status: 500,

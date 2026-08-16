@@ -25,12 +25,22 @@ export class YahooFinanceProvider implements MarketDataProvider {
     return {
       ticker: data.ticker,
       companyName: data.companyName,
+
       price: data.price,
       change: data.change ?? 0,
       changePercent: data.changePercent ?? 0,
+
       volume: data.volume,
       marketCap: data.marketCap,
       currency: data.currency,
+
+      // 52 Week Range
+      fiftyTwoWeekHigh:
+        data.fiftyTwoWeekHigh,
+
+      fiftyTwoWeekLow:
+        data.fiftyTwoWeekLow,
+
       timestamp: new Date().toISOString(),
     };
   }

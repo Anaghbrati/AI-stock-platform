@@ -18,25 +18,19 @@ export default function AIAnalysis({
 
       {/* Header */}
 
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10 text-xl">
-          🤖
-        </div>
+      <div className="mb-6">
+        <p className="text-slate-400 text-sm">
+          AI-Powered Analysis
+        </p>
 
-        <div>
-          <p className="text-slate-400 text-sm">
-            AI-Powered Analysis
-          </p>
-
-          <h2 className="text-2xl font-semibold mt-1">
-            Market Intelligence
-          </h2>
-        </div>
+        <h2 className="text-2xl font-bold mt-2">
+          Market Intelligence
+        </h2>
       </div>
 
       {/* Summary */}
 
-      <div className="mt-6 rounded-lg border border-slate-800 bg-slate-950 p-5">
+      <div className="rounded-lg border border-slate-800 bg-slate-950 p-5">
         <p className="text-slate-400 text-sm">
           Summary
         </p>
@@ -50,8 +44,6 @@ export default function AIAnalysis({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
 
-        {/* Outlook */}
-
         <div className="rounded-lg border border-slate-800 bg-slate-950 p-5">
           <p className="text-slate-400 text-sm">
             Market Outlook
@@ -61,8 +53,6 @@ export default function AIAnalysis({
             {outlook}
           </p>
         </div>
-
-        {/* Risk */}
 
         <div className="rounded-lg border border-slate-800 bg-slate-950 p-5">
           <p className="text-slate-400 text-sm">
@@ -84,18 +74,18 @@ export default function AIAnalysis({
           Key Points
         </p>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
 
           {keyPoints.map((point, index) => (
             <div
               key={index}
-              className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-950 p-3"
+              className="flex gap-3 rounded-lg border border-slate-800 bg-slate-950 p-4"
             >
-              <span className="text-purple-400 mt-0.5">
-                •
+              <span className="text-slate-500">
+                {index + 1}.
               </span>
 
-              <p className="text-sm text-slate-300">
+              <p className="text-slate-300 text-sm">
                 {point}
               </p>
             </div>
@@ -103,6 +93,16 @@ export default function AIAnalysis({
 
         </div>
 
+      </div>
+
+      {/* Disclaimer */}
+
+      <div className="mt-6 border-t border-slate-800 pt-4">
+        <p className="text-xs text-slate-500">
+          AI-generated analysis is for educational and
+          informational purposes only. It is not financial
+          advice or a guarantee of future market performance.
+        </p>
       </div>
 
     </div>

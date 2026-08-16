@@ -21,3 +21,71 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* =========================================
+   AI STOCK LANDING PAGE
+   UX POLISH
+========================================= */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 77, 97, 0.25);
+  color: white;
+}
+
+/* Smooth rendering */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Better anchor positioning under fixed navbar */
+section[id] {
+  scroll-margin-top: 90px;
+}
+
+/* Remove tap highlight on mobile */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Accessible focus */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #ff4d61;
+  outline-offset: 3px;
+}
+
+/* Landing page subtle scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090b0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #242832;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #343945;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  h1 {
+    letter-spacing: -0.04em;
+  }
+}

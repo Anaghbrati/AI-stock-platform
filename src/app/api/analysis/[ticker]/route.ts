@@ -5,9 +5,13 @@ import {
   getHistoricalData,
 } from "../../../../lib/services/stock.service";
 
-import { calculateTechnicalSignal } from "../../../../lib/services/technical-analysis";
+import {
+  calculateTechnicalSignal,
+} from "../../../../lib/services/technical-analysis";
 
-import { generateAIAnalysis } from "../../../../lib/services/ai-analysis.service";
+import {
+  generateAIAnalysis,
+} from "../../../../lib/services/ai-analysis.service";
 
 interface RouteContext {
   params: Promise<{
@@ -16,97 +20,121 @@ interface RouteContext {
 }
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: RouteContext
 ) {
   try {
+    // ========================================
+    // TICKER
+    // ========================================
+
     const { ticker } = await params;
 
     const normalizedTicker =
       ticker.toUpperCase();
 
-    console.log(
-      `Generating analysis for ${normalizedTicker}`
-    );
+    // ========================================
+    // STOCK QUOTE
+    // ========================================
 
-    /*
-     * Fetch quote and historical data
-     * simultaneously.
-     */
-    const [stock, historicalData] =
-      await Promise.all([
-        getStockQuote(normalizedTicker),
+    const stock =
+      await getStockQuote(
+        normalizedTicker
+      );
 
-        getHistoricalData(
-          normalizedTicker,
-          "1y",
-          "1d"
-        ),
-      ]);
+    // ========================================
+    // HISTORICAL DATA
+    // ========================================
 
-    /*
-     * Calculate technical indicators.
-     * This is local computation, so it is fast.
-     */
-    const technicalAnalysis =
+    const historicalData =
+      await getHistoricalData(
+        normalizedTicker,
+        "1y",
+        "1d"
+      );
+
+    // ========================================
+    // TECHNICAL ANALYSIS
+    // ========================================
+
+    const technical =
       calculateTechnicalSignal(
         historicalData
       );
 
-    console.log(
-      "Technical analysis:",
-      technicalAnalysis
-    );
+    // ========================================
+    // AI ANALYSIS
+    // ========================================
 
-    /*
-     * Generate AI analysis.
-     *
-     * The AI service contains its own
-     * fallback handling.
-     */
-    const aiAnalysis =
-      await generateAIAnalysis({
-        ticker: normalizedTicker,
+    const aiInput = {
+      ticker: normalizedTicker,
 
-        price:
-          stock.price ?? null,
+      price:
+        stock.price ?? null,
 
-        changePercent:
-          stock.changePercent ?? null,
+      changePercent:
+        stock.changePercent ?? null,
 
-        signal:
-          technicalAnalysis.signal,
+      signal:
+        technical.signal,
 
-        score:
-          technicalAnalysis.score,
+      score:
+        technical.score,
 
-        rsi:
-          technicalAnalysis.rsi,
+      rsi:
+        technical.rsi ?? null,
 
-        macd:
-          technicalAnalysis.macd,
+      macd:
+        technical.macd ?? null,
 
-        macdSignal:
-          technicalAnalysis.macdSignal,
+      macdSignal:
+        technical.macdSignal ?? null,
 
-        macdHistogram:
-          technicalAnalysis.macdHistogram,
+      macdHistogram:
+        technical.macdHistogram ?? null,
 
-        reasons:
-          technicalAnalysis.reasons,
-      });
+      reasons:
+        technical.reasons ?? [],
+    };
+
+    const ai =
+      await generateAIAnalysis(
+        aiInput
+      );
+
+    // ========================================
+    // FINAL RESPONSE
+    // ========================================
 
     return NextResponse.json({
       ticker: normalizedTicker,
 
-      stock,
+      technical: {
+        signal:
+          technical.signal,
 
-      technical:
-        technicalAnalysis,
+        score:
+          technical.score,
 
-      ai:
-        aiAnalysis,
+        reasons:
+          technical.reasons,
+
+        rsi:
+          technical.rsi ?? null,
+
+        macd:
+          technical.macd ?? null,
+
+        macdSignal:
+          technical.macdSignal ?? null,
+
+        macdHistogram:
+          technical.macdHistogram ?? null,
+      },
+
+      ai,
     });
+
   } catch (error) {
     console.error(
       "Analysis API error:",

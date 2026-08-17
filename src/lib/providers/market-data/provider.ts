@@ -3,10 +3,14 @@ import type {
   StockFundamentals,
   StockQuote,
   StockSearchResult,
+  FinancialStatements,
+  Shareholding,
 } from "./types";
 
 export interface MarketDataProvider {
-  getQuote(ticker: string): Promise<StockQuote>;
+  getQuote(
+    ticker: string
+  ): Promise<StockQuote>;
 
   getHistoricalData(
     ticker: string,
@@ -16,6 +20,14 @@ export interface MarketDataProvider {
   getFundamentals(
     ticker: string
   ): Promise<StockFundamentals>;
+
+  getFinancialStatements(
+    ticker: string
+  ): Promise<FinancialStatements>;
+
+  getShareholding(
+    ticker: string
+  ): Promise<Shareholding>;
 
   searchStocks(
     query: string

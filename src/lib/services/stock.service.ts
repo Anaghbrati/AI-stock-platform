@@ -43,3 +43,25 @@ export async function getHistoricalData(
 
   return response.json();
 }
+
+export async function getFinancialStatements(
+  ticker: string
+) {
+  const provider =
+    getMarketDataProvider();
+
+  return provider.getFinancialStatements(
+    ticker
+  );
+}
+
+export async function getShareholding(
+  ticker: string
+) {
+  const provider =
+    getMarketDataProvider();
+
+  return provider.getShareholding(
+    ticker
+  );
+}

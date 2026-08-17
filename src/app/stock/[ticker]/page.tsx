@@ -3,6 +3,7 @@ import Link from "next/link";
 import AIAnalysis from "../../../components/analysis/AIAnalysis";
 import TechnicalSignal from "../../../components/analysis/TechnicalSignal";
 import StockChartContainer from "../../../components/charts/StockChartContainer";
+import FundamentalsCard from "../../../components/fundamentals/FundamentalsCard";
 
 import {
   getStockQuote,
@@ -87,6 +88,7 @@ export default async function StockPage({
       rsi: null,
       macd: null,
       macdSignal: null,
+      macdHistogram: null,
     };
 
   const ai =
@@ -176,7 +178,8 @@ export default async function StockPage({
                     </p>
 
                     <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
-                      {stock.companyName}
+                      {stock.companyName ??
+                        normalizedTicker}
                     </h1>
 
                   </div>
@@ -210,6 +213,8 @@ export default async function StockPage({
                   </div>
 
 
+                  {/* Change */}
+
                   <div
                     className={`mb-1 rounded-xl px-3 py-2 text-sm font-bold ${
                       isPositive
@@ -239,7 +244,10 @@ export default async function StockPage({
 
               {/* Watchlist */}
 
-              <button className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-sm font-semibold text-slate-400 transition hover:border-[#ff4d61]/20 hover:bg-[#ff4d61]/5 hover:text-[#ff6678]">
+              <button
+                type="button"
+                className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-sm font-semibold text-slate-400 transition hover:border-[#ff4d61]/20 hover:bg-[#ff4d61]/5 hover:text-[#ff6678]"
+              >
 
                 <span className="text-lg">
                   ☆
@@ -299,7 +307,8 @@ export default async function StockPage({
             <StatCard
               label="52W High"
               value={
-                stock.fiftyTwoWeekHigh != null
+                stock.fiftyTwoWeekHigh !=
+                null
                   ? `${
                       stock.currency ===
                       "INR"
@@ -318,7 +327,8 @@ export default async function StockPage({
             <StatCard
               label="52W Low"
               value={
-                stock.fiftyTwoWeekLow != null
+                stock.fiftyTwoWeekLow !=
+                null
                   ? `${
                       stock.currency ===
                       "INR"
@@ -344,17 +354,13 @@ export default async function StockPage({
 
           <div className="border-b border-white/[0.05] px-6 py-5">
 
-            <div>
+            <p className="text-sm font-bold text-white">
+              Price Chart
+            </p>
 
-              <p className="text-sm font-bold text-white">
-                Price Chart
-              </p>
-
-              <p className="mt-1 text-xs text-slate-600">
-                Historical price movement
-              </p>
-
-            </div>
+            <p className="mt-1 text-xs text-slate-600">
+              Historical price movement
+            </p>
 
           </div>
 
@@ -375,156 +381,15 @@ export default async function StockPage({
 
         <section className="mt-6">
 
-          <div className="mb-5">
-
-            <p className="text-xs font-medium uppercase tracking-wider text-[#ff6678]">
-              Financial Data
-            </p>
-
-            <h2 className="mt-1 text-2xl font-black">
-              Fundamentals
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-600">
-              Key financial metrics and valuation data.
-            </p>
-
-          </div>
-
-
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-
-            {/* P/E */}
-
-            <FundamentalCard
-              label="P/E Ratio"
-              value={
-                fundamentals.peRatio != null
-                  ? fundamentals.peRatio.toFixed(
-                      2
-                    )
-                  : "N/A"
-              }
-              description="Price / Earnings"
-            />
-
-
-            {/* P/B */}
-
-            <FundamentalCard
-              label="P/B Ratio"
-              value={
-                fundamentals.pbRatio != null
-                  ? fundamentals.pbRatio.toFixed(
-                      2
-                    )
-                  : "N/A"
-              }
-              description="Price / Book"
-            />
-
-
-            {/* ROE */}
-
-            <FundamentalCard
-              label="ROE"
-              value={
-                fundamentals.roe != null
-                  ? `${fundamentals.roe.toFixed(
-                      2
-                    )}%`
-                  : "N/A"
-              }
-              description="Return on Equity"
-            />
-
-
-            {/* Debt / Equity */}
-
-            <FundamentalCard
-              label="Debt / Equity"
-              value={
-                fundamentals.debtToEquity != null
-                  ? fundamentals.debtToEquity.toFixed(
-                      2
-                    )
-                  : "N/A"
-              }
-              description="Financial leverage"
-            />
-
-
-            {/* EPS */}
-
-            <FundamentalCard
-              label="EPS"
-              value={
-                fundamentals.eps != null
-                  ? `${
-                      stock.currency ===
-                      "INR"
-                        ? "₹"
-                        : "$"
-                    }${fundamentals.eps.toFixed(
-                      2
-                    )}`
-                  : "N/A"
-              }
-              description="Earnings per share"
-            />
-
-
-            {/* Dividend Yield */}
-
-            <FundamentalCard
-              label="Dividend Yield"
-              value={
-                fundamentals.dividendYield != null
-                  ? `${fundamentals.dividendYield.toFixed(
-                      2
-                    )}%`
-                  : "N/A"
-              }
-              description="Annual dividend"
-            />
-
-
-            {/* Free Cash Flow */}
-
-            <FundamentalCard
-              label="Free Cash Flow"
-              value={
-                fundamentals.freeCashFlow != null
-                  ? formatLargeNumber(
-                      fundamentals.freeCashFlow
-                    )
-                  : "N/A"
-              }
-              description="Cash after expenses"
-            />
-
-
-            {/* Market Cap */}
-
-            <FundamentalCard
-              label="Market Cap"
-              value={
-                fundamentals.marketCap != null
-                  ? formatLargeNumber(
-                      fundamentals.marketCap
-                    )
-                  : "N/A"
-              }
-              description="Company valuation"
-            />
-
-          </div>
+          <FundamentalsCard
+            fundamentals={fundamentals}
+          />
 
         </section>
 
 
         {/* =====================================
-            ANALYSIS GRID
+            ANALYSIS
         ====================================== */}
 
         <section className="mt-6">
@@ -540,8 +405,9 @@ export default async function StockPage({
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              Technical indicators and AI-powered
-              market interpretation.
+              Technical indicators and
+              AI-powered market
+              interpretation.
             </p>
 
           </div>
@@ -549,7 +415,7 @@ export default async function StockPage({
 
           <div className="space-y-6">
 
-            {/* Technical */}
+            {/* Technical Analysis */}
 
             <TechnicalSignal
               signal={technical.signal}
@@ -560,10 +426,13 @@ export default async function StockPage({
               macdSignal={
                 technical.macdSignal
               }
+              macdHistogram={
+                technical.macdHistogram
+              }
             />
 
 
-            {/* AI */}
+            {/* AI Analysis */}
 
             <AIAnalysis
               summary={ai.summary}
@@ -598,10 +467,15 @@ export default async function StockPage({
 
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
 
+            {/* Ticker */}
+
             <InfoItem
               label="Ticker"
               value={stock.ticker}
             />
+
+
+            {/* Currency */}
 
             <InfoItem
               label="Currency"
@@ -610,6 +484,9 @@ export default async function StockPage({
                 "N/A"
               }
             />
+
+
+            {/* Change */}
 
             <InfoItem
               label="Change"
@@ -625,6 +502,9 @@ export default async function StockPage({
                   : "N/A"
               }
             />
+
+
+            {/* Data Provider */}
 
             <InfoItem
               label="Data Provider"
@@ -643,39 +523,6 @@ export default async function StockPage({
       </div>
 
     </main>
-  );
-}
-
-
-/* =========================================
-   FUNDAMENTAL CARD
-========================================= */
-
-function FundamentalCard({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#101318] p-5 transition hover:border-white/[0.1]">
-
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-        {label}
-      </p>
-
-      <p className="mt-3 truncate text-xl font-bold text-white">
-        {value}
-      </p>
-
-      <p className="mt-1 text-[11px] text-slate-600">
-        {description}
-      </p>
-
-    </div>
   );
 }
 

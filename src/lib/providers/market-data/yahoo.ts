@@ -3,21 +3,39 @@ import type {
   StockFundamentals,
   StockQuote,
   StockSearchResult,
+  FinancialStatements,
+  Shareholding,
 } from "./types";
 
 import type { MarketDataProvider } from "./provider";
 
 const MARKET_DATA_API =
-  process.env.MARKET_DATA_API_URL || "http://localhost:8000";
+  process.env.MARKET_DATA_API_URL ||
+  "http://localhost:8000";
 
-export class YahooFinanceProvider implements MarketDataProvider {
-  async getQuote(ticker: string): Promise<StockQuote> {
+export class YahooFinanceProvider
+  implements MarketDataProvider
+{
+  // ========================================
+  // STOCK QUOTE
+  // ========================================
+
+  async getQuote(
+    ticker: string
+  ): Promise<StockQuote> {
     const response = await fetch(
-      `${MARKET_DATA_API}/api/quote/${encodeURIComponent(ticker)}`
+      `${MARKET_DATA_API}/api/quote/${encodeURIComponent(
+        ticker
+      )}`,
+      {
+        cache: "no-store",
+      }
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch quote for ${ticker}`);
+      throw new Error(
+        `Failed to fetch quote for ${ticker}`
+      );
     }
 
     const data = await response.json();
@@ -41,9 +59,15 @@ export class YahooFinanceProvider implements MarketDataProvider {
       fiftyTwoWeekLow:
         data.fiftyTwoWeekLow,
 
-      timestamp: new Date().toISOString(),
+      timestamp:
+        new Date().toISOString(),
     };
   }
+
+
+  // ========================================
+  // HISTORICAL DATA
+  // ========================================
 
   async getHistoricalData(
     ticker: string,
@@ -54,50 +78,152 @@ export class YahooFinanceProvider implements MarketDataProvider {
     );
   }
 
-  async getFundamentals(
-  ticker: string
-): Promise<StockFundamentals> {
-  const response = await fetch(
-    `${MARKET_DATA_API}/api/fundamentals/${encodeURIComponent(
-      ticker
-    )}`,
-    {
-      cache: "no-store",
-    }
-  );
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch fundamentals for ${ticker}`
+  // ========================================
+  // FUNDAMENTALS
+  // ========================================
+
+  async getFundamentals(
+    ticker: string
+  ): Promise<StockFundamentals> {
+
+    const response = await fetch(
+      `${MARKET_DATA_API}/api/fundamentals/${encodeURIComponent(
+        ticker
+      )}`,
+      {
+        cache: "no-store",
+      }
     );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch fundamentals for ${ticker}`
+      );
+    }
+
+    const data =
+      await response.json();
+
+    return {
+      ticker: data.ticker,
+
+      peRatio: data.peRatio,
+      pbRatio: data.pbRatio,
+
+      roe: data.roe,
+      roce: data.roce,
+
+      debtToEquity:
+        data.debtToEquity,
+
+      dividendYield:
+        data.dividendYield,
+
+      freeCashFlow:
+        data.freeCashFlow,
+
+      eps: data.eps,
+
+      marketCap:
+        data.marketCap,
+    };
   }
 
-  const data = await response.json();
 
-  return {
-    ticker: data.ticker,
+  // ========================================
+  // FINANCIAL STATEMENTS
+  // ========================================
 
-    peRatio: data.peRatio,
-    pbRatio: data.pbRatio,
+  async getFinancialStatements(
+    ticker: string
+  ): Promise<FinancialStatements> {
 
-    roe: data.roe,
-    roce: data.roce,
+    const response = await fetch(
+      `${MARKET_DATA_API}/api/financials/${encodeURIComponent(
+        ticker
+      )}`,
+      {
+        cache: "no-store",
+      }
+    );
 
-    debtToEquity: data.debtToEquity,
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch financial statements for ${ticker}`
+      );
+    }
 
-    dividendYield: data.dividendYield,
+    const data =
+      await response.json();
 
-    freeCashFlow: data.freeCashFlow,
+    return {
+      ticker:
+        data.ticker ?? ticker,
 
-    eps: data.eps,
+      annual:
+        data.annual ?? [],
 
-    marketCap: data.marketCap,
-  };
-}
+      quarterly:
+        data.quarterly ?? [],
+    };
+  }
+
+
+  // ========================================
+  // SHAREHOLDING
+  // ========================================
+
+  async getShareholding(
+    ticker: string
+  ): Promise<Shareholding> {
+
+    const response = await fetch(
+      `${MARKET_DATA_API}/api/shareholding/${encodeURIComponent(
+        ticker
+      )}`,
+      {
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch shareholding for ${ticker}`
+      );
+    }
+
+    const data =
+      await response.json();
+
+    return {
+      ticker:
+        data.ticker ?? ticker,
+
+      promoterHolding:
+        data.promoterHolding ?? null,
+
+      institutionalHolding:
+        data.institutionalHolding ?? null,
+
+      mutualFundHolding:
+        data.mutualFundHolding ?? null,
+
+      publicHolding:
+        data.publicHolding ?? null,
+    };
+  }
+
+
+  // ========================================
+  // STOCK SEARCH
+  // ========================================
 
   async searchStocks(
     query: string
   ): Promise<StockSearchResult[]> {
-    throw new Error(`Stock search not implemented yet: ${query}`);
+    throw new Error(
+      `Stock search not implemented yet: ${query}`
+    );
   }
 }

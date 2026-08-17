@@ -13,98 +13,178 @@ export default function AIAnalysis({
   risk,
   keyPoints,
 }: AIAnalysisProps) {
+  const normalizedOutlook =
+    outlook.toUpperCase();
+
+  const outlookColor =
+    normalizedOutlook.includes("BULL")
+      ? "text-emerald-400"
+      : normalizedOutlook.includes("BEAR")
+      ? "text-red-400"
+      : "text-amber-400";
+
   return (
-    <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-6">
+    <section className="rounded-2xl border border-white/[0.06] bg-[#101318] p-6 sm:p-7">
 
-      {/* Header */}
+      {/* =====================================
+          HEADER
+      ====================================== */}
 
-      <div className="mb-6">
-        <p className="text-slate-400 text-sm">
-          AI-Powered Analysis
-        </p>
+      <div className="flex items-start gap-4">
 
-        <h2 className="text-2xl font-bold mt-2">
-          Market Intelligence
-        </h2>
+        {/* AI Icon */}
+
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#ff6678]/10 bg-[#ff6678]/10 text-lg text-[#ff6678]">
+          ✦
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#ff6678]">
+            AI Intelligence
+          </p>
+
+          <h2 className="mt-1 text-xl font-bold text-white">
+            AI Market Analysis
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-600">
+            AI-generated interpretation of current market conditions.
+          </p>
+        </div>
+
       </div>
 
-      {/* Summary */}
 
-      <div className="rounded-lg border border-slate-800 bg-slate-950 p-5">
-        <p className="text-slate-400 text-sm">
+      {/* =====================================
+          SUMMARY
+      ====================================== */}
+
+      <div className="mt-6 rounded-xl border border-white/[0.05] bg-white/[0.02] p-5">
+
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">
           Summary
         </p>
 
-        <p className="text-slate-200 mt-2 leading-relaxed">
+        <p className="mt-3 text-sm leading-7 text-slate-400">
           {summary}
         </p>
+
       </div>
 
-      {/* Outlook + Risk */}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      {/* =====================================
+          OUTLOOK + RISK
+      ====================================== */}
 
-        <div className="rounded-lg border border-slate-800 bg-slate-950 p-5">
-          <p className="text-slate-400 text-sm">
-            Market Outlook
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+        {/* Outlook */}
+
+        <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-5">
+
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+            AI Outlook
           </p>
 
-          <p className="text-slate-200 mt-2 leading-relaxed">
+          <p
+            className={`mt-2 text-lg font-bold ${outlookColor}`}
+          >
             {outlook}
           </p>
+
         </div>
 
-        <div className="rounded-lg border border-slate-800 bg-slate-950 p-5">
-          <p className="text-slate-400 text-sm">
+
+        {/* Risk */}
+
+        <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-5">
+
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
             Risk Assessment
           </p>
 
-          <p className="text-slate-200 mt-2 leading-relaxed">
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">
             {risk}
           </p>
+
         </div>
 
       </div>
 
-      {/* Key Points */}
+
+      {/* =====================================
+          KEY INSIGHTS
+      ====================================== */}
 
       <div className="mt-6">
 
-        <p className="text-slate-400 text-sm mb-3">
-          Key Points
-        </p>
+        <div className="mb-3 flex items-center justify-between">
 
-        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Key Insights
+          </p>
 
-          {keyPoints.map((point, index) => (
-            <div
-              key={index}
-              className="flex gap-3 rounded-lg border border-slate-800 bg-slate-950 p-4"
-            >
-              <span className="text-slate-500">
-                {index + 1}.
-              </span>
+          <span className="text-[10px] text-slate-700">
+            {keyPoints.length} insights
+          </span>
 
-              <p className="text-slate-300 text-sm">
-                {point}
+        </div>
+
+
+        <div className="space-y-2">
+
+          {keyPoints.length > 0 ? (
+
+            keyPoints.map((point, index) => (
+
+              <div
+                key={`${point}-${index}`}
+                className="flex gap-3 rounded-xl border border-white/[0.04] bg-white/[0.015] px-4 py-3 transition hover:border-white/[0.08]"
+              >
+
+                <span className="mt-0.5 shrink-0 text-[#ff6678]">
+                  ✦
+                </span>
+
+                <p className="text-sm leading-6 text-slate-400">
+                  {point}
+                </p>
+
+              </div>
+
+            ))
+
+          ) : (
+
+            <div className="rounded-xl border border-white/[0.04] bg-white/[0.015] p-4">
+
+              <p className="text-sm text-slate-600">
+                No AI insights available.
               </p>
+
             </div>
-          ))}
+
+          )}
 
         </div>
 
       </div>
 
-      {/* Disclaimer */}
 
-      <div className="mt-6 border-t border-slate-800 pt-4">
-        <p className="text-xs text-slate-500">
+      {/* =====================================
+          DISCLAIMER
+      ====================================== */}
+
+      <div className="mt-6 border-t border-white/[0.05] pt-4">
+
+        <p className="text-[11px] leading-5 text-slate-600">
           AI-generated analysis is for educational and
           informational purposes only. It is not financial
           advice or a guarantee of future market performance.
         </p>
+
       </div>
 
-    </div>
+    </section>
   );
 }

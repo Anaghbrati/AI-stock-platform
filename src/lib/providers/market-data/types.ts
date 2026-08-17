@@ -17,6 +17,7 @@ export interface StockQuote {
   timestamp?: string;
 }
 
+
 export interface HistoricalData {
   date: string;
   open: number;
@@ -25,6 +26,7 @@ export interface HistoricalData {
   close: number;
   volume: number;
 }
+
 
 export interface StockFundamentals {
   ticker: string;
@@ -52,6 +54,48 @@ export interface StockFundamentals {
   // Company Size
   marketCap?: number;
 }
+
+
+export interface FinancialStatementPeriod {
+  period: string;
+
+  revenue?: number | null;
+  grossProfit?: number | null;
+  operatingIncome?: number | null;
+  netIncome?: number | null;
+  eps?: number | null;
+
+  totalAssets?: number | null;
+  totalLiabilities?: number | null;
+  totalEquity?: number | null;
+  cash?: number | null;
+  totalDebt?: number | null;
+
+  operatingCashFlow?: number | null;
+  investingCashFlow?: number | null;
+  financingCashFlow?: number | null;
+  freeCashFlow?: number | null;
+}
+
+
+export interface FinancialStatements {
+  ticker: string;
+
+  annual: FinancialStatementPeriod[];
+
+  quarterly: FinancialStatementPeriod[];
+}
+
+
+export interface Shareholding {
+  ticker: string;
+
+  promoterHolding?: number | null;
+  institutionalHolding?: number | null;
+  mutualFundHolding?: number | null;
+  publicHolding?: number | null;
+}
+
 
 export interface StockSearchResult {
   ticker: string;

@@ -1,4 +1,3 @@
-
 import math
 
 import yfinance as yf
@@ -36,28 +35,148 @@ class YahooFinanceService:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def first_valid(*values):
+        """
+        Return the first usable numeric value.
+        """
+
+        for value in values:
+            number = YahooFinanceService.safe_float(value)
+
+            if number is not None:
+                return number
+
+        return None
+
+    @staticmethod
+    def is_index(ticker: str) -> bool:
+        """
+        Yahoo Finance index symbols start with ^.
+
+        Examples:
+        ^NSEI
+        ^BSESN
+        """
+
+        return ticker.startswith("^")
+
+    @staticmethod
+    def get_company_name(
+        ticker: str,
+        info: dict,
+    ) -> str:
+        """
+        Get a human-readable name.
+
+        Yahoo's index metadata is inconsistent, so
+        explicit names are provided for important
+        Indian indices.
+        """
+
+        index_names = {
+            "^NSEI": "NIFTY 50",
+            "^BSESN": "SENSEX",
+        }
+
+        if ticker in index_names:
+            return index_names[ticker]
+
+        return (
+            info.get("longName")
+            or info.get("shortName")
+            or info.get("displayName")
+            or ticker
+        )
+
+    @staticmethod
+    def get_history_quote(stock):
+        """
+        Fallback quote retrieval using historical data.
+
+        This is particularly useful for Yahoo Finance
+        indices where stock.info may be incomplete.
+        """
+
+        try:
+            history = stock.history(
+                period="5d",
+                interval="1d",
+                auto_adjust=False,
+            )
+
+        except Exception as error:
+            print(
+                f"Yahoo history error: {error}"
+            )
+            return None, None
+
+        if history is None or history.empty:
+            return None, None
+
+        closes = history["Close"].dropna()
+
+        if closes.empty:
+            return None, None
+
+        current_price = YahooFinanceService.safe_float(
+            closes.iloc[-1]
+        )
+
+        previous_close = None
+
+        if len(closes) >= 2:
+            previous_close = (
+                YahooFinanceService.safe_float(
+                    closes.iloc[-2]
+                )
+            )
+
+        return current_price, previous_close
+
+    # ========================================
+    # VALIDATE QUOTE
+    # ========================================
 
     @staticmethod
     def validate_quote(
         ticker: str,
         info: dict,
+        price=None,
     ):
         """
-        Validate that Yahoo Finance returned a
-        meaningful stock/security.
+        Validate that Yahoo Finance returned
+        meaningful data.
 
-        We require:
-        - company name
-        - some usable price information
+        Normal stocks:
+            require a company name and price.
 
-        This prevents invalid tickers such as
-        INVALID123 from being treated as valid.
+        Indices:
+            only require a valid price because
+            Yahoo metadata for indices is inconsistent.
         """
 
         if not info:
+            info = {}
+
+        safe_price = (
+            YahooFinanceService.safe_float(price)
+        )
+
+        if safe_price is None:
+            safe_price = YahooFinanceService.first_valid(
+                info.get("currentPrice"),
+                info.get("regularMarketPrice"),
+                info.get("previousClose"),
+            )
+
+        if safe_price is None:
             raise ValueError(
                 f"Stock not found: {ticker}"
             )
+
+        if YahooFinanceService.is_index(ticker):
+            return True
 
         company_name = (
             info.get("longName")
@@ -65,33 +184,12 @@ class YahooFinanceService:
             or info.get("displayName")
         )
 
-        price = (
-            info.get("currentPrice")
-            or info.get("regularMarketPrice")
-            or info.get("previousClose")
-        )
-
         if not company_name:
             raise ValueError(
                 f"Stock not found: {ticker}"
             )
 
-        if price is None:
-            raise ValueError(
-                f"Stock not found: {ticker}"
-            )
-
-        safe_price = YahooFinanceService.safe_float(
-            price
-        )
-
-        if safe_price is None:
-            raise ValueError(
-                f"Stock not found: {ticker}"
-            )
-
         return True
-
 
     # ========================================
     # STOCK QUOTE
@@ -106,72 +204,114 @@ class YahooFinanceService:
                 "Ticker is required"
             )
 
+        print(
+            f"Yahoo Finance: fetching quote for {ticker}"
+        )
+
+        # --------------------------------
+        # CREATE YAHOO TICKER
+        # --------------------------------
+
         try:
-
             stock = yf.Ticker(ticker)
-
-            info = stock.info
 
         except Exception as error:
 
             print(
-                f"Yahoo Finance error for {ticker}: "
-                f"{error}"
+                f"Yahoo Finance ticker error for "
+                f"{ticker}: {error}"
             )
 
             raise ValueError(
-                f"Unable to fetch stock data for {ticker}"
+                f"Unable to create Yahoo Finance ticker "
+                f"for {ticker}"
             ) from error
 
+        # --------------------------------
+        # FETCH INFO
+        # --------------------------------
+
+        info = {}
+
+        try:
+            info = stock.info or {}
+
+        except Exception as error:
+
+            print(
+                f"Yahoo Finance info error for "
+                f"{ticker}: {error}"
+            )
+
+            # Don't immediately fail.
+            # history() may still work.
+
+            info = {}
 
         # --------------------------------
-        # VALIDATE STOCK
+        # PRICE FROM INFO
+        # --------------------------------
+
+        price = self.first_valid(
+            info.get("currentPrice"),
+            info.get("regularMarketPrice"),
+            info.get("previousClose"),
+        )
+
+        # --------------------------------
+        # PREVIOUS CLOSE FROM INFO
+        # --------------------------------
+
+        previous_close = self.first_valid(
+            info.get(
+                "regularMarketPreviousClose"
+            ),
+            info.get("previousClose"),
+        )
+
+        # --------------------------------
+        # HISTORY FALLBACK
+        # --------------------------------
+
+        history_price = None
+        history_previous_close = None
+
+        if price is None or previous_close is None:
+
+            (
+                history_price,
+                history_previous_close,
+            ) = self.get_history_quote(stock)
+
+        # Prefer actual history price when
+        # info did not provide one.
+
+        if price is None:
+            price = history_price
+
+        if previous_close is None:
+            previous_close = (
+                history_previous_close
+            )
+
+        # --------------------------------
+        # VALIDATE
         # --------------------------------
 
         self.validate_quote(
             ticker,
             info,
+            price,
         )
-
 
         # --------------------------------
         # COMPANY NAME
         # --------------------------------
 
-        company_name = (
-            info.get("longName")
-            or info.get("shortName")
-            or info.get("displayName")
+        company_name = self.get_company_name(
+            ticker,
+            info,
         )
-
-
-        # --------------------------------
-        # CURRENT PRICE
-        # --------------------------------
-
-        price = (
-            info.get("currentPrice")
-            or info.get("regularMarketPrice")
-        )
-
-        price = self.safe_float(price)
-
-
-        # --------------------------------
-        # PREVIOUS CLOSE
-        # --------------------------------
-
-        previous_close = (
-            info.get(
-                "regularMarketPreviousClose"
-            )
-            or info.get("previousClose")
-        )
-
-        previous_close = self.safe_float(
-            previous_close
-        )
-
 
         # --------------------------------
         # CHANGE
@@ -184,11 +324,9 @@ class YahooFinanceService:
             and previous_close is not None
             and previous_close != 0
         ):
-
             change = (
                 price - previous_close
             )
-
 
         # --------------------------------
         # CHANGE %
@@ -201,12 +339,9 @@ class YahooFinanceService:
             and previous_close is not None
             and previous_close != 0
         ):
-
             change_percent = (
-                change
-                / previous_close
+                change / previous_close
             ) * 100
-
 
         # --------------------------------
         # MARKET DATA
@@ -232,6 +367,14 @@ class YahooFinanceService:
             )
         )
 
+        # --------------------------------
+        # CURRENCY
+        # --------------------------------
+
+        currency = (
+            info.get("currency")
+            or "INR"
+        )
 
         # --------------------------------
         # RETURN NORMALIZED QUOTE
@@ -249,8 +392,7 @@ class YahooFinanceService:
 
             "changePercent": change_percent,
 
-            "currency":
-                info.get("currency"),
+            "currency": currency,
 
             "marketCap": market_cap,
 
@@ -261,9 +403,7 @@ class YahooFinanceService:
 
             "fiftyTwoWeekLow":
                 fifty_two_week_low,
-
         }
-
 
     # ========================================
     # FUNDAMENTALS
@@ -285,7 +425,7 @@ class YahooFinanceService:
 
             stock = yf.Ticker(ticker)
 
-            info = stock.info
+            info = stock.info or {}
 
         except Exception as error:
 
@@ -295,19 +435,9 @@ class YahooFinanceService:
             )
 
             raise ValueError(
-                f"Unable to fetch fundamentals for {ticker}"
+                f"Unable to fetch fundamentals for "
+                f"{ticker}"
             ) from error
-
-
-        # --------------------------------
-        # VALIDATE STOCK
-        # --------------------------------
-
-        self.validate_quote(
-            ticker,
-            info,
-        )
-
 
         # --------------------------------
         # ROE
@@ -320,7 +450,6 @@ class YahooFinanceService:
         if roe is not None:
             roe *= 100
 
-
         # --------------------------------
         # DIVIDEND YIELD
         # --------------------------------
@@ -329,7 +458,6 @@ class YahooFinanceService:
             info.get("dividendYield")
         )
 
-
         # --------------------------------
         # RETURN
         # --------------------------------
@@ -337,8 +465,6 @@ class YahooFinanceService:
         return {
 
             "ticker": ticker,
-
-            # Valuation
 
             "peRatio":
                 self.safe_float(
@@ -350,42 +476,28 @@ class YahooFinanceService:
                     info.get("priceToBook")
                 ),
 
-            # Profitability
-
-            "roe":
-                roe,
-
-            # Financial Health
+            "roe": roe,
 
             "debtToEquity":
                 self.safe_float(
                     info.get("debtToEquity")
                 ),
 
-            # Dividend
-
             "dividendYield":
                 dividend_yield,
-
-            # Cash Flow
 
             "freeCashFlow":
                 self.safe_float(
                     info.get("freeCashflow")
                 ),
 
-            # Earnings
-
             "eps":
                 self.safe_float(
                     info.get("trailingEps")
                 ),
 
-            # Market Cap
-
             "marketCap":
                 self.safe_float(
                     info.get("marketCap")
                 ),
-
         }

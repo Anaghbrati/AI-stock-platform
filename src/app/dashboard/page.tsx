@@ -5,6 +5,9 @@ import LogoutButton from "../../components/auth/LogoutButton";
 import Watchlist from "../../components/watchlist/Watchlist";
 import MarketOverview from "../../components/dashboard/MarketOverview";
 import DashboardShell from "../../components/dashboard/DashboardShell";
+import ThemeToggle from "../../components/ui/ThemeToggle";
+import ProfileMenu from "../../components/profile/ProfileMenu";
+
 
 export default async function DashboardPage() {
   /*
@@ -54,12 +57,16 @@ export default async function DashboardPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
 
-              <span className="text-xs font-medium text-slate-400">
-                Market data connected
-              </span>
+                <span className="text-xs font-medium text-slate-400">
+                  Market data connected
+                </span>
+              </div>
+
+              
             </div>
 
           </div>

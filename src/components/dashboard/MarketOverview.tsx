@@ -137,7 +137,11 @@ export default function MarketOverview() {
         })
       );
 
-      setIndices(results);
+      const validResults = results.filter(
+        (item) => item.price !== null
+      );
+
+      setIndices(validResults);
 
       /*
        * Only show an error if every market request failed.
@@ -221,6 +225,10 @@ export default function MarketOverview() {
           <MarketSkeleton />
           <MarketSkeleton />
         </div>
+      ) : indices.length === 0 ? (
+        <MarketEmptyState
+          onRetry={fetchMarketData}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {indices.map((index) => (
@@ -356,20 +364,69 @@ function MarketCard({
 
 function MarketSkeleton() {
   return (
-    <div className="h-[190px] animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318] p-6">
-      <div className="flex justify-between">
+    <div
+      className="animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318] p-6"
+      aria-hidden="true"
+    >
+      {/* Top row */}
+      <div className="flex items-start justify-between">
         <div>
-          <div className="h-3 w-20 rounded bg-white/[0.05]" />
+          <div className="h-3 w-20 rounded bg-white/[0.06]" />
 
-          <div className="mt-3 h-4 w-24 rounded bg-white/[0.05]" />
+          <div className="mt-3 h-4 w-28 rounded bg-white/[0.06]" />
         </div>
 
-        <div className="h-6 w-12 rounded bg-white/[0.05]" />
+        <div className="h-6 w-12 rounded-lg bg-white/[0.06]" />
       </div>
 
-      <div className="mt-8 h-9 w-32 rounded bg-white/[0.05]" />
+      {/* Price row */}
+      <div className="mt-6 flex items-end justify-between">
+        <div>
+          <div className="h-9 w-36 rounded-lg bg-white/[0.06]" />
 
-      <div className="mt-6 h-3 w-full rounded bg-white/[0.03]" />
+          <div className="mt-2 h-2.5 w-12 rounded bg-white/[0.04]" />
+        </div>
+
+        <div className="h-10 w-20 rounded-xl bg-white/[0.06]" />
+      </div>
+
+      {/* Footer */}
+      <div className="mt-6 border-t border-white/[0.05] pt-4">
+        <div className="h-3 w-full rounded bg-white/[0.04]" />
+      </div>
+    </div>
+  );
+}
+
+function MarketEmptyState({
+  onRetry,
+}: {
+  onRetry: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-[#101318] px-6 py-10 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025]">
+        <span className="text-lg text-slate-500">
+          ◈
+        </span>
+      </div>
+
+      <h3 className="mt-4 text-sm font-semibold text-white">
+        No market data available
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-slate-600">
+        We couldn't find current market information.
+        Please try refreshing the data.
+      </p>
+
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-2 text-xs font-semibold text-slate-400 transition hover:bg-white/[0.05] hover:text-white"
+      >
+        Try again
+      </button>
     </div>
   );
 }

@@ -23,47 +23,117 @@ export class YahooFinanceProvider
   async getQuote(
     ticker: string
   ): Promise<StockQuote> {
-    const response = await fetch(
-      `${MARKET_DATA_API}/api/quote/${encodeURIComponent(
-        ticker
-      )}`,
-      {
-        cache: "no-store",
-      }
-    );
+    const normalizedTicker =
+      ticker.trim().toUpperCase();
 
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch quote for ${ticker}`
-      );
+    if (!normalizedTicker) {
+      throw new Error("Ticker is required");
     }
 
-    const data = await response.json();
+    const maxAttempts = 3;
 
-    return {
-      ticker: data.ticker,
-      companyName: data.companyName,
+    let lastError: unknown;
 
-      price: data.price,
-      change: data.change ?? 0,
-      changePercent: data.changePercent ?? 0,
+    for (
+      let attempt = 1;
+      attempt <= maxAttempts;
+      attempt++
+    ) {
+      try {
+        const response = await fetch(
+          `${MARKET_DATA_API}/api/quote/${encodeURIComponent(
+            normalizedTicker
+          )}`,
+          {
+            cache: "no-store",
+          }
+        );
 
-      volume: data.volume,
-      marketCap: data.marketCap,
-      currency: data.currency,
+        const data =
+          await response.json().catch(
+            () => null
+          );
 
-      // 52 Week Range
-      fiftyTwoWeekHigh:
-        data.fiftyTwoWeekHigh,
+        if (response.ok) {
+          return {
+            ticker:
+              data?.ticker ??
+              normalizedTicker,
 
-      fiftyTwoWeekLow:
-        data.fiftyTwoWeekLow,
+            companyName:
+              data?.companyName ??
+              normalizedTicker,
 
-      timestamp:
-        new Date().toISOString(),
-    };
+            price:
+              data?.price ?? null,
+
+            change:
+              data?.change ?? null,
+
+            changePercent:
+              data?.changePercent ?? null,
+
+            volume:
+              data?.volume ?? null,
+
+            marketCap:
+              data?.marketCap ?? null,
+
+            currency:
+              data?.currency ?? "INR",
+
+            fiftyTwoWeekHigh:
+              data?.fiftyTwoWeekHigh ??
+              null,
+
+            fiftyTwoWeekLow:
+              data?.fiftyTwoWeekLow ??
+              null,
+
+            timestamp:
+              new Date().toISOString(),
+          };
+        }
+
+        lastError = new Error(
+          data?.detail ||
+            data?.error ||
+            `Quote request failed with status ${response.status}`
+        );
+
+        console.warn(
+          `[MarketData] Quote attempt ${attempt}/${maxAttempts} failed`,
+          {
+            ticker: normalizedTicker,
+            status: response.status,
+          }
+        );
+      } catch (error) {
+        lastError = error;
+
+        console.warn(
+          `[MarketData] Quote attempt ${attempt}/${maxAttempts} failed`,
+          error
+        );
+      }
+
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            500 * attempt
+          )
+        );
+      }
+    }
+
+    throw new Error(
+      `Failed to fetch quote for ${normalizedTicker} after ${maxAttempts} attempts`,
+      {
+        cause: lastError,
+      }
+    );
   }
-
 
   // ========================================
   // HISTORICAL DATA
@@ -71,13 +141,139 @@ export class YahooFinanceProvider
 
   async getHistoricalData(
     ticker: string,
-    range: string
+    period: string = "1y",
+    interval: string = "1d"
   ): Promise<HistoricalData[]> {
-    throw new Error(
-      `Historical data not implemented yet: ${ticker}, ${range}`
-    );
-  }
+    const normalizedTicker =
+      ticker.trim().toUpperCase();
 
+    if (!normalizedTicker) {
+      throw new Error("Ticker is required");
+    }
+
+    const normalizedPeriod =
+      period.trim().toLowerCase();
+
+    const normalizedInterval =
+      interval.trim().toLowerCase();
+
+    if (
+      !normalizedPeriod ||
+      !normalizedInterval
+    ) {
+      throw new Error(
+        "Historical period and interval are required"
+      );
+    }
+
+    const url =
+      `${MARKET_DATA_API}/api/historical/` +
+      `${encodeURIComponent(normalizedTicker)}` +
+      `?period=${encodeURIComponent(
+        normalizedPeriod
+      )}` +
+      `&interval=${encodeURIComponent(
+        normalizedInterval
+      )}`;
+
+    console.log(
+      "[MarketData] Historical request:",
+      url
+    );
+
+    const response = await fetch(
+      url,
+      {
+        cache: "no-store",
+      }
+    );
+
+    const data =
+      await response.json().catch(
+        () => null
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        data?.detail ||
+          data?.error ||
+          `Failed to fetch historical data for ${normalizedTicker} (${response.status})`
+      );
+    }
+
+    if (!Array.isArray(data)) {
+      throw new Error(
+        `Invalid historical data returned for ${normalizedTicker}`
+      );
+    }
+
+    const historicalData =
+      data
+        .filter((item: unknown) => {
+          if (
+            !item ||
+            typeof item !== "object"
+          ) {
+            return false;
+          }
+
+          const row =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          return (
+            Number.isFinite(
+              Number(row.time)
+            ) &&
+            Number.isFinite(
+              Number(row.open)
+            ) &&
+            Number.isFinite(
+              Number(row.high)
+            ) &&
+            Number.isFinite(
+              Number(row.low)
+            ) &&
+            Number.isFinite(
+              Number(row.close)
+            )
+          );
+        })
+        .map(
+          (
+            item: Record<
+              string,
+              unknown
+            >
+          ): HistoricalData => ({
+            time: Number(item.time),
+
+            open: Number(item.open),
+
+            high: Number(item.high),
+
+            low: Number(item.low),
+
+            close: Number(item.close),
+
+            volume:
+              Number.isFinite(
+                Number(item.volume)
+              )
+                ? Number(item.volume)
+                : 0,
+          })
+        );
+
+    historicalData.sort(
+      (a, b) =>
+        a.time - b.time
+    );
+
+    return historicalData;
+  }
 
   // ========================================
   // FUNDAMENTALS
@@ -86,50 +282,68 @@ export class YahooFinanceProvider
   async getFundamentals(
     ticker: string
   ): Promise<StockFundamentals> {
+    const normalizedTicker =
+      ticker.trim().toUpperCase();
+
+    if (!normalizedTicker) {
+      throw new Error("Ticker is required");
+    }
 
     const response = await fetch(
       `${MARKET_DATA_API}/api/fundamentals/${encodeURIComponent(
-        ticker
+        normalizedTicker
       )}`,
       {
         cache: "no-store",
       }
     );
 
+    const data =
+      await response.json().catch(
+        () => null
+      );
+
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch fundamentals for ${ticker}`
+        data?.detail ||
+          data?.error ||
+          `Failed to fetch fundamentals for ${normalizedTicker}`
       );
     }
 
-    const data =
-      await response.json();
-
     return {
-      ticker: data.ticker,
+      ticker:
+        data?.ticker ??
+        normalizedTicker,
 
-      peRatio: data.peRatio,
-      pbRatio: data.pbRatio,
+      peRatio:
+        data?.peRatio ?? null,
 
-      roe: data.roe,
-      roce: data.roce,
+      pbRatio:
+        data?.pbRatio ?? null,
+
+      roe:
+        data?.roe ?? null,
+
+      roce:
+        data?.roce ?? null,
 
       debtToEquity:
-        data.debtToEquity,
+        data?.debtToEquity ?? null,
 
       dividendYield:
-        data.dividendYield,
+        data?.dividendYield ?? null,
 
       freeCashFlow:
-        data.freeCashFlow,
+        data?.freeCashFlow ?? null,
 
-      eps: data.eps,
+      eps:
+        data?.eps ?? null,
 
       marketCap:
-        data.marketCap,
+        data?.marketCap ?? null,
     };
   }
-
 
   // ========================================
   // FINANCIAL STATEMENTS
@@ -138,138 +352,180 @@ export class YahooFinanceProvider
   async getFinancialStatements(
     ticker: string
   ): Promise<FinancialStatements> {
+    const normalizedTicker =
+      ticker.trim().toUpperCase();
+
+    if (!normalizedTicker) {
+      throw new Error("Ticker is required");
+    }
 
     const response = await fetch(
       `${MARKET_DATA_API}/api/financials/${encodeURIComponent(
-        ticker
+        normalizedTicker
       )}`,
       {
         cache: "no-store",
       }
     );
 
+    const data =
+      await response.json().catch(
+        () => null
+      );
+
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch financial statements for ${ticker}`
+        data?.detail ||
+          data?.error ||
+          `Failed to fetch financial statements for ${normalizedTicker}`
       );
     }
 
-    const data =
-      await response.json();
-
     return {
       ticker:
-        data.ticker ?? ticker,
+        data?.ticker ??
+        normalizedTicker,
 
       annual:
-        data.annual ?? [],
+        Array.isArray(data?.annual)
+          ? data.annual
+          : [],
 
       quarterly:
-        data.quarterly ?? [],
+        Array.isArray(
+          data?.quarterly
+        )
+          ? data.quarterly
+          : [],
     };
   }
 
-
   // ========================================
-// SHAREHOLDING
-// ========================================
-
-async getShareholding(
-  ticker: string
-): Promise<Shareholding> {
-
-  const response = await fetch(
-    `${MARKET_DATA_API}/api/shareholding/${encodeURIComponent(
-      ticker
-    )}`,
-    {
-      cache: "no-store",
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch shareholding for ${ticker}`
-    );
-  }
-
-  const data = await response.json();
-
-  return {
-  ticker:
-    data.ticker ?? ticker,
-
-  promoterHolding:
-    data.promoterHolding ?? null,
-
-  institutionalHolding:
-    data.institutionalHolding ?? null,
-
-  mutualFundHolding:
-    data.mutualFundHolding ?? null,
-
-  publicHolding:
-    data.publicHolding ?? null,
-
-  insiderHolding:
-    data.insiderHolding ?? null,
-};
-}
-
-
+  // SHAREHOLDING
   // ========================================
-// STOCK SEARCH
-// ========================================
 
-async searchStocks(
-  query: string
-): Promise<StockSearchResult[]> {
+  async getShareholding(
+    ticker: string
+  ): Promise<Shareholding> {
+    const normalizedTicker =
+      ticker.trim().toUpperCase();
 
-  const normalizedQuery =
-    query.trim();
-
-  if (!normalizedQuery) {
-    return [];
-  }
-
-  const response = await fetch(
-    `${MARKET_DATA_API}/api/search?q=${encodeURIComponent(
-      normalizedQuery
-    )}`,
-    {
-      cache: "no-store",
+    if (!normalizedTicker) {
+      throw new Error("Ticker is required");
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(
-      `Failed to search stocks for "${normalizedQuery}"`
+    const response = await fetch(
+      `${MARKET_DATA_API}/api/shareholding/${encodeURIComponent(
+        normalizedTicker
+      )}`,
+      {
+        cache: "no-store",
+      }
     );
-  }
 
-  const data = await response.json();
+    const data =
+      await response.json().catch(
+        () => null
+      );
 
-  const results =
-    Array.isArray(data)
-      ? data
-      : data.results ?? [];
+    if (!response.ok) {
+      throw new Error(
+        data?.detail ||
+          data?.error ||
+          `Failed to fetch shareholding for ${normalizedTicker}`
+      );
+    }
 
-  return results.map(
-    (item: any): StockSearchResult => ({
+    return {
       ticker:
-        item.ticker ??
-        item.symbol ??
-        "",
+        data?.ticker ??
+        normalizedTicker,
 
-      companyName:
-        item.companyName ??
-        item.longname ??
-        item.shortname ??
-        item.name ??
-        item.ticker ??
-        item.symbol ??
-        "",
-    })
-  );
-}
+      promoterHolding:
+        data?.promoterHolding ??
+        null,
+
+      institutionalHolding:
+        data?.institutionalHolding ??
+        null,
+
+      mutualFundHolding:
+        data?.mutualFundHolding ??
+        null,
+
+      publicHolding:
+        data?.publicHolding ??
+        null,
+
+      insiderHolding:
+        data?.insiderHolding ??
+        null,
+    };
+  }
+
+  // ========================================
+  // STOCK SEARCH
+  // ========================================
+
+  async searchStocks(
+    query: string
+  ): Promise<StockSearchResult[]> {
+    const normalizedQuery =
+      query.trim();
+
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const response = await fetch(
+      `${MARKET_DATA_API}/api/search?q=${encodeURIComponent(
+        normalizedQuery
+      )}`,
+      {
+        cache: "no-store",
+      }
+    );
+
+    const data =
+      await response.json().catch(
+        () => null
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        data?.detail ||
+          data?.error ||
+          `Failed to search stocks for "${normalizedQuery}"`
+      );
+    }
+
+    const results =
+      Array.isArray(data)
+        ? data
+        : Array.isArray(
+            data?.results
+          )
+        ? data.results
+        : [];
+
+    return results.map(
+      (
+        item: any
+      ): StockSearchResult => ({
+        ticker:
+          item?.ticker ??
+          item?.symbol ??
+          "",
+
+        companyName:
+          item?.companyName ??
+          item?.longname ??
+          item?.shortname ??
+          item?.name ??
+          item?.ticker ??
+          item?.symbol ??
+          "",
+      })
+    );
+  }
 }

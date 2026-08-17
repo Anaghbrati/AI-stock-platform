@@ -14,7 +14,8 @@ export interface MarketDataProvider {
 
   getHistoricalData(
     ticker: string,
-    range: string
+    period: string,
+    interval: string
   ): Promise<HistoricalData[]>;
 
   getFundamentals(

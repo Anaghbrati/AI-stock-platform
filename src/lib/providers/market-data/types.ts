@@ -19,14 +19,13 @@ export interface StockQuote {
 
 
 export interface HistoricalData {
-  date: string;
+  time: number;
   open: number;
   high: number;
   low: number;
   close: number;
   volume: number;
 }
-
 
 export interface StockFundamentals {
   ticker: string;

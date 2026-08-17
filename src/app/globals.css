@@ -1,89 +1,197 @@
 @import "tailwindcss";
 
+/* ========================================
+   TAILWIND DARK MODE
+======================================== */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+
+/* ========================================
+   LIGHT THEME
+======================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --card-background: #ffffff;
+  --card-secondary: #f1f5f9;
+
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+
+  --border-color: #e2e8f0;
+
+  --input-background: #ffffff;
+
+  --hover-background: #f1f5f9;
+
+  color-scheme: light;
 }
+
+
+/* ========================================
+   DARK THEME
+======================================== */
+
+.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+
+  --card-background: #0f172a;
+  --card-secondary: #1e293b;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --border-color: #334155;
+
+  --input-background: #0f172a;
+
+  --hover-background: #1e293b;
+
+  color-scheme: dark;
+}
+
+
+/* ========================================
+   GLOBAL
+======================================== */
 
 * {
   box-sizing: border-box;
-}
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* =========================================
-   AI STOCK LANDING PAGE
-   UX POLISH
-========================================= */
 
 html {
+  min-height: 100%;
   scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
+  min-height: 100%;
+
+  background: var(--background);
+  color: var(--foreground);
+
+  font-family: Arial, Helvetica, sans-serif;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
-/* Selection */
+
+/* ========================================
+   THEME UTILITY CLASSES
+======================================== */
+
+.theme-page {
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+.theme-card {
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.theme-secondary {
+  background: var(--card-secondary);
+  color: var(--text-primary);
+}
+
+.theme-text {
+  color: var(--text-primary);
+}
+
+.theme-muted {
+  color: var(--text-secondary);
+}
+
+.theme-border {
+  border-color: var(--border-color);
+}
+
+.theme-input {
+  background: var(--input-background);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.theme-hover:hover {
+  background: var(--hover-background);
+}
+
+
+/* ========================================
+   SELECTION
+======================================== */
+
 ::selection {
   background: rgba(255, 77, 97, 0.25);
-  color: white;
+  color: var(--text-primary);
 }
 
-/* Smooth rendering */
-* {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
 
-/* Better anchor positioning under fixed navbar */
-section[id] {
-  scroll-margin-top: 90px;
-}
+/* ========================================
+   FOCUS
+======================================== */
 
-/* Remove tap highlight on mobile */
 button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Accessible focus */
 button:focus-visible,
 a:focus-visible {
   outline: 2px solid #ff4d61;
   outline-offset: 3px;
 }
 
-/* Landing page subtle scrollbar */
+
+/* ========================================
+   SCROLLBAR
+======================================== */
+
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090b0f;
+  background: var(--card-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #242832;
+  background: var(--border-color);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #343945;
+  background: var(--text-muted);
 }
 
-/* Mobile */
+
+/* ========================================
+   ANCHOR POSITIONING
+======================================== */
+
+section[id] {
+  scroll-margin-top: 90px;
+}
+
+
+/* ========================================
+   MOBILE
+======================================== */
+
 @media (max-width: 640px) {
   h1 {
     letter-spacing: -0.04em;

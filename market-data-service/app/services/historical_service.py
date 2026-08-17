@@ -1,4 +1,3 @@
-
 import math
 
 import yfinance as yf
@@ -10,7 +9,7 @@ import yfinance as yf
 
 def safe_float(value):
     """
-    Convert Yahoo Finance values safely.
+    Safely convert a value to float.
 
     Returns None for:
     - None
@@ -66,7 +65,18 @@ def get_historical_data(
     """
     Fetch historical OHLCV data from Yahoo Finance.
 
-    Supported examples:
+    Returns:
+
+    {
+        "time": Unix timestamp,
+        "open": number,
+        "high": number,
+        "low": number,
+        "close": number,
+        "volume": number
+    }
+
+    Examples:
 
         1d  + 5m
         5d  + 15m
@@ -77,6 +87,9 @@ def get_historical_data(
     """
 
     ticker = ticker.strip().upper()
+
+    if not ticker:
+        raise ValueError("Ticker is required")
 
     # ========================================
     # VALID PERIODS
@@ -148,7 +161,7 @@ def get_historical_data(
 
         raise ValueError(
             f"Failed to fetch historical data for {ticker}"
-        )
+        ) from error
 
     # ========================================
     # EMPTY RESPONSE
@@ -173,10 +186,6 @@ def get_historical_data(
 
     for index, row in history.iterrows():
 
-        # ------------------------------------
-        # OHLC
-        # ------------------------------------
-
         open_price = safe_float(
             row.get("Open")
         )
@@ -197,9 +206,9 @@ def get_historical_data(
             row.get("Volume")
         )
 
-        # ------------------------------------
-        # Skip invalid OHLC rows
-        # ------------------------------------
+        # ====================================
+        # SKIP INVALID OHLC
+        # ====================================
 
         if (
             open_price is None
@@ -210,32 +219,18 @@ def get_historical_data(
             continue
 
         # ====================================
-        # TIMESTAMP
+        # UNIX TIMESTAMP
         # ====================================
 
-        if interval in {
-            "1d",
-            "5d",
-            "1wk",
-            "1mo",
-            "3mo",
-        }:
+        try:
 
-            time_value = index.strftime(
-                "%Y-%m-%d"
+            time_value = int(
+                index.timestamp()
             )
 
-        else:
+        except Exception:
 
-            try:
-
-                time_value = int(
-                    index.timestamp()
-                )
-
-            except Exception:
-
-                continue
+            continue
 
         # ====================================
         # DUPLICATE PROTECTION
@@ -247,7 +242,7 @@ def get_historical_data(
         seen_times.add(time_value)
 
         # ====================================
-        # APPEND DATA
+        # APPEND
         # ====================================
 
         data.append(
@@ -279,7 +274,11 @@ def get_historical_data(
         )
 
     # ========================================
-    # FINAL SAFETY CHECK
+    # FINAL SORT
     # ========================================
+
+    data.sort(
+        key=lambda item: item["time"]
+    )
 
     return data

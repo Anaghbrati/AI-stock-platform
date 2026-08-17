@@ -91,9 +91,14 @@ export interface Shareholding {
   ticker: string;
 
   promoterHolding?: number | null;
+
   institutionalHolding?: number | null;
+
   mutualFundHolding?: number | null;
+
   publicHolding?: number | null;
+
+  insiderHolding?: number | null;
 }
 
 

@@ -171,48 +171,50 @@ export class YahooFinanceProvider
 
 
   // ========================================
-  // SHAREHOLDING
-  // ========================================
+// SHAREHOLDING
+// ========================================
 
-  async getShareholding(
-    ticker: string
-  ): Promise<Shareholding> {
+async getShareholding(
+  ticker: string
+): Promise<Shareholding> {
 
-    const response = await fetch(
-      `${MARKET_DATA_API}/api/shareholding/${encodeURIComponent(
-        ticker
-      )}`,
-      {
-        cache: "no-store",
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch shareholding for ${ticker}`
-      );
+  const response = await fetch(
+    `${MARKET_DATA_API}/api/shareholding/${encodeURIComponent(
+      ticker
+    )}`,
+    {
+      cache: "no-store",
     }
+  );
 
-    const data =
-      await response.json();
-
-    return {
-      ticker:
-        data.ticker ?? ticker,
-
-      promoterHolding:
-        data.promoterHolding ?? null,
-
-      institutionalHolding:
-        data.institutionalHolding ?? null,
-
-      mutualFundHolding:
-        data.mutualFundHolding ?? null,
-
-      publicHolding:
-        data.publicHolding ?? null,
-    };
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch shareholding for ${ticker}`
+    );
   }
+
+  const data = await response.json();
+
+  return {
+  ticker:
+    data.ticker ?? ticker,
+
+  promoterHolding:
+    data.promoterHolding ?? null,
+
+  institutionalHolding:
+    data.institutionalHolding ?? null,
+
+  mutualFundHolding:
+    data.mutualFundHolding ?? null,
+
+  publicHolding:
+    data.publicHolding ?? null,
+
+  insiderHolding:
+    data.insiderHolding ?? null,
+};
+}
 
 
   // ========================================

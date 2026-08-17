@@ -4,10 +4,13 @@ import AIAnalysis from "../../../components/analysis/AIAnalysis";
 import TechnicalSignal from "../../../components/analysis/TechnicalSignal";
 import StockChartContainer from "../../../components/charts/StockChartContainer";
 import FundamentalsCard from "../../../components/fundamentals/FundamentalsCard";
+import ShareholdingChart from "../../../components/shareholding/ShareholdingChart";
 
 import {
   getStockQuote,
   getStockFundamentals,
+  getFinancialStatements,
+  getShareholding,
 } from "../../../lib/services/stock.service";
 
 interface StockPageProps {
@@ -32,11 +35,29 @@ export default async function StockPage({
   );
 
   // ========================================
-  // STOCK FUNDAMENTALS
+  // FUNDAMENTALS
   // ========================================
 
   const fundamentals =
     await getStockFundamentals(
+      normalizedTicker
+    );
+
+  // ========================================
+  // FINANCIAL STATEMENTS
+  // ========================================
+
+  const financialStatements =
+    await getFinancialStatements(
+      normalizedTicker
+    );
+
+  // ========================================
+  // SHAREHOLDING
+  // ========================================
+
+  const shareholding =
+    await getShareholding(
       normalizedTicker
     );
 
@@ -48,14 +69,15 @@ export default async function StockPage({
     process.env.NEXT_PUBLIC_APP_URL ||
     "http://localhost:3000";
 
-  const analysisResponse = await fetch(
-    `${baseUrl}/api/analysis/${encodeURIComponent(
-      normalizedTicker
-    )}`,
-    {
-      cache: "no-store",
-    }
-  );
+  const analysisResponse =
+    await fetch(
+      `${baseUrl}/api/analysis/${encodeURIComponent(
+        normalizedTicker
+      )}`,
+      {
+        cache: "no-store",
+      }
+    );
 
   if (!analysisResponse.ok) {
     const errorText =
@@ -75,7 +97,7 @@ export default async function StockPage({
     await analysisResponse.json();
 
   // ========================================
-  // SAFETY FALLBACK
+  // TECHNICAL FALLBACK
   // ========================================
 
   const technical =
@@ -91,12 +113,21 @@ export default async function StockPage({
       macdHistogram: null,
     };
 
+  // ========================================
+  // AI FALLBACK
+  // ========================================
+
   const ai =
     analysis?.ai ?? {
       summary:
         "AI analysis is currently unavailable.",
-      outlook: "NEUTRAL",
-      risk: "UNKNOWN",
+
+      outlook:
+        "NEUTRAL",
+
+      risk:
+        "UNKNOWN",
+
       keyPoints: [],
     };
 
@@ -108,10 +139,12 @@ export default async function StockPage({
     stock.changePercent ?? null;
 
   const isPositive =
-    change !== null && change > 0;
+    change !== null &&
+    change > 0;
 
   const isNegative =
-    change !== null && change < 0;
+    change !== null &&
+    change < 0;
 
   return (
     <main className="min-h-screen bg-[#07090d] text-white">
@@ -148,15 +181,13 @@ export default async function StockPage({
 
         <section className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#101318]">
 
-          {/* Background glow */}
-
           <div className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full bg-[#ff4d61]/[0.06] blur-3xl" />
 
           <div className="relative p-6 sm:p-8">
 
             <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
 
-              {/* Stock identity */}
+              {/* STOCK IDENTITY */}
 
               <div>
 
@@ -187,7 +218,7 @@ export default async function StockPage({
                 </div>
 
 
-                {/* Price */}
+                {/* PRICE */}
 
                 <div className="mt-7 flex flex-wrap items-end gap-4">
 
@@ -213,7 +244,7 @@ export default async function StockPage({
                   </div>
 
 
-                  {/* Change */}
+                  {/* CHANGE */}
 
                   <div
                     className={`mb-1 rounded-xl px-3 py-2 text-sm font-bold ${
@@ -242,7 +273,7 @@ export default async function StockPage({
               </div>
 
 
-              {/* Watchlist */}
+              {/* WATCHLIST */}
 
               <button
                 type="button"
@@ -272,13 +303,10 @@ export default async function StockPage({
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 
-            {/* Volume */}
-
             <StatCard
               label="Volume"
               value={
-                stock.volume !== null &&
-                stock.volume !== undefined
+                stock.volume != null
                   ? stock.volume.toLocaleString(
                       "en-IN"
                     )
@@ -286,23 +314,16 @@ export default async function StockPage({
               }
             />
 
-
-            {/* Market Cap */}
-
             <StatCard
               label="Market Cap"
               value={
-                stock.marketCap !== null &&
-                stock.marketCap !== undefined
+                stock.marketCap != null
                   ? formatLargeNumber(
                       stock.marketCap
                     )
                   : "N/A"
               }
             />
-
-
-            {/* 52 Week High */}
 
             <StatCard
               label="52W High"
@@ -320,9 +341,6 @@ export default async function StockPage({
                   : "N/A"
               }
             />
-
-
-            {/* 52 Week Low */}
 
             <StatCard
               label="52W Low"
@@ -347,7 +365,7 @@ export default async function StockPage({
 
 
         {/* =====================================
-            CHART
+            PRICE CHART
         ====================================== */}
 
         <section className="mt-6 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#101318]">
@@ -382,14 +400,319 @@ export default async function StockPage({
         <section className="mt-6">
 
           <FundamentalsCard
-            fundamentals={fundamentals}
+            fundamentals={
+              fundamentals
+            }
           />
 
         </section>
 
 
         {/* =====================================
-            ANALYSIS
+            FINANCIAL STATEMENTS
+        ====================================== */}
+
+        <section className="mt-6">
+
+          <div className="mb-5">
+
+            <p className="text-xs font-medium uppercase tracking-wider text-[#ff6678]">
+              Financial Data
+            </p>
+
+            <h2 className="mt-1 text-2xl font-black">
+              Financial Statements
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-600">
+              Annual and quarterly financial
+              performance.
+            </p>
+
+          </div>
+
+
+          {/* ANNUAL */}
+
+          <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-[#101318]">
+
+            <div className="border-b border-white/[0.05] px-6 py-5">
+
+              <h3 className="text-lg font-bold">
+                Annual Results
+              </h3>
+
+            </div>
+
+            {financialStatements.annual
+              ?.length > 0 ? (
+
+              <table className="w-full min-w-[900px] text-sm">
+
+                <thead className="border-b border-white/[0.05]">
+
+                  <tr className="text-left text-xs uppercase tracking-wider text-slate-600">
+
+                    <th className="px-6 py-4">
+                      Period
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Revenue
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Operating Income
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Net Income
+                    </th>
+
+                    <th className="px-6 py-4">
+                      EPS
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Total Assets
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Total Debt
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  {financialStatements.annual.map(
+                    (item, index) => (
+
+                      <tr
+                        key={`${item.period}-${index}`}
+                        className="border-b border-white/[0.04] last:border-0"
+                      >
+
+                        <td className="px-6 py-4 font-semibold text-white">
+                          {item.period}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.revenue
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.operatingIncome
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.netIncome
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatNumber(
+                            item.eps
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.totalAssets
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.totalDebt
+                          )}
+                        </td>
+
+                      </tr>
+
+                    )
+                  )}
+
+                </tbody>
+
+              </table>
+
+            ) : (
+
+              <div className="p-6 text-sm text-slate-500">
+                Annual financial data is currently
+                unavailable.
+              </div>
+
+            )}
+
+          </div>
+
+
+          {/* QUARTERLY */}
+
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-white/[0.06] bg-[#101318]">
+
+            <div className="border-b border-white/[0.05] px-6 py-5">
+
+              <h3 className="text-lg font-bold">
+                Quarterly Results
+              </h3>
+
+            </div>
+
+            {financialStatements.quarterly
+              ?.length > 0 ? (
+
+              <table className="w-full min-w-[900px] text-sm">
+
+                <thead className="border-b border-white/[0.05]">
+
+                  <tr className="text-left text-xs uppercase tracking-wider text-slate-600">
+
+                    <th className="px-6 py-4">
+                      Period
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Revenue
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Operating Income
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Net Income
+                    </th>
+
+                    <th className="px-6 py-4">
+                      EPS
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Operating Cash Flow
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Free Cash Flow
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  {financialStatements.quarterly.map(
+                    (item, index) => (
+
+                      <tr
+                        key={`${item.period}-${index}`}
+                        className="border-b border-white/[0.04] last:border-0"
+                      >
+
+                        <td className="px-6 py-4 font-semibold text-white">
+                          {item.period}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.revenue
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.operatingIncome
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.netIncome
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatNumber(
+                            item.eps
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.operatingCashFlow
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-300">
+                          {formatFinancialValue(
+                            item.freeCashFlow
+                          )}
+                        </td>
+
+                      </tr>
+
+                    )
+                  )}
+
+                </tbody>
+
+              </table>
+
+            ) : (
+
+              <div className="p-6 text-sm text-slate-500">
+                Quarterly financial data is currently
+                unavailable.
+              </div>
+
+            )}
+
+          </div>
+
+        </section>
+
+
+        {/* =====================================
+              SHAREHOLDING
+          ===================================== */}
+
+          <section className="mt-6">
+
+            <div className="mb-5">
+
+              <p className="text-xs font-medium uppercase tracking-wider text-[#ff6678]">
+                Ownership
+              </p>
+
+              <h2 className="mt-1 text-2xl font-black">
+                Shareholding Pattern
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Ownership distribution of the company.
+              </p>
+
+            </div>
+
+            <ShareholdingChart
+              shareholding={shareholding}
+            />
+
+          </section>
+
+
+        {/* =====================================
+            STOCK ANALYSIS
         ====================================== */}
 
         <section className="mt-6">
@@ -405,9 +728,8 @@ export default async function StockPage({
             </h2>
 
             <p className="mt-1 text-sm text-slate-600">
-              Technical indicators and
-              AI-powered market
-              interpretation.
+              Technical indicators and AI-powered
+              market interpretation.
             </p>
 
           </div>
@@ -415,14 +737,24 @@ export default async function StockPage({
 
           <div className="space-y-6">
 
-            {/* Technical Analysis */}
+            {/* TECHNICAL */}
 
             <TechnicalSignal
-              signal={technical.signal}
-              score={technical.score}
-              reasons={technical.reasons}
-              rsi={technical.rsi}
-              macd={technical.macd}
+              signal={
+                technical.signal
+              }
+              score={
+                technical.score
+              }
+              reasons={
+                technical.reasons
+              }
+              rsi={
+                technical.rsi
+              }
+              macd={
+                technical.macd
+              }
               macdSignal={
                 technical.macdSignal
               }
@@ -432,13 +764,21 @@ export default async function StockPage({
             />
 
 
-            {/* AI Analysis */}
+            {/* AI */}
 
             <AIAnalysis
-              summary={ai.summary}
-              outlook={ai.outlook}
-              risk={ai.risk}
-              keyPoints={ai.keyPoints}
+              summary={
+                ai.summary
+              }
+              outlook={
+                ai.outlook
+              }
+              risk={
+                ai.risk
+              }
+              keyPoints={
+                ai.keyPoints
+              }
             />
 
           </div>
@@ -467,15 +807,12 @@ export default async function StockPage({
 
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
 
-            {/* Ticker */}
-
             <InfoItem
               label="Ticker"
-              value={stock.ticker}
+              value={
+                stock.ticker
+              }
             />
-
-
-            {/* Currency */}
 
             <InfoItem
               label="Currency"
@@ -484,9 +821,6 @@ export default async function StockPage({
                 "N/A"
               }
             />
-
-
-            {/* Change */}
 
             <InfoItem
               label="Change"
@@ -503,9 +837,6 @@ export default async function StockPage({
               }
             />
 
-
-            {/* Data Provider */}
-
             <InfoItem
               label="Data Provider"
               value="Yahoo Finance"
@@ -516,7 +847,7 @@ export default async function StockPage({
         </section>
 
 
-        {/* Footer spacing */}
+        {/* FOOTER SPACING */}
 
         <div className="h-10" />
 
@@ -555,6 +886,37 @@ function StatCard({
 
 
 /* =========================================
+   HOLDING CARD
+========================================= */
+
+function HoldingCard({
+  label,
+  value,
+}: {
+  label: string;
+  value?: number | null;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-[#101318] p-5 transition hover:border-white/[0.1]">
+
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+        {label}
+      </p>
+
+      <p className="mt-3 text-2xl font-black text-white">
+
+        {value != null
+          ? `${value.toFixed(2)}%`
+          : "N/A"}
+
+      </p>
+
+    </div>
+  );
+}
+
+
+/* =========================================
    INFO ITEM
 ========================================= */
 
@@ -582,7 +944,7 @@ function InfoItem({
 
 
 /* =========================================
-   HELPERS
+   PRICE FORMATTER
 ========================================= */
 
 function formatPrice(
@@ -604,6 +966,10 @@ function formatPrice(
 }
 
 
+/* =========================================
+   LARGE NUMBER FORMATTER
+========================================= */
+
 function formatLargeNumber(
   value: number
 ) {
@@ -624,6 +990,46 @@ function formatLargeNumber(
   );
 }
 
+
+/* =========================================
+   FINANCIAL VALUE FORMATTER
+========================================= */
+
+function formatFinancialValue(
+  value: number | null | undefined
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "N/A";
+  }
+
+  return formatLargeNumber(value);
+}
+
+
+/* =========================================
+   NUMBER FORMATTER
+========================================= */
+
+function formatNumber(
+  value: number | null | undefined
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "N/A";
+  }
+
+  return value.toFixed(2);
+}
+
+
+/* =========================================
+   INITIALS
+========================================= */
 
 function getInitials(
   companyName?: string,

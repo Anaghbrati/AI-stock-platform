@@ -7,20 +7,35 @@ export interface WatchlistItem {
   created_at: string;
 }
 
+// ========================================
+// GET WATCHLIST
+// ========================================
+
 export async function getWatchlist(
   userId: string
 ): Promise<WatchlistItem[]> {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("watchlist")
-    .select("*")
+    .select(
+      "id, user_id, ticker, created_at"
+    )
     .eq("user_id", userId)
     .order("created_at", {
       ascending: false,
     });
 
   if (error) {
+    console.error(
+      "GET WATCHLIST SUPABASE ERROR:",
+      error
+    );
+
     throw new Error(
       `Failed to fetch watchlist: ${error.message}`
     );
@@ -29,14 +44,26 @@ export async function getWatchlist(
   return data ?? [];
 }
 
+// ========================================
+// ADD TO WATCHLIST
+// ========================================
+
 export async function addToWatchlist(
   userId: string,
   ticker: string
 ): Promise<WatchlistItem> {
-  const supabase = await createClient();
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
 
   const normalizedTicker =
     ticker.trim().toUpperCase();
+
+  if (!normalizedTicker) {
+    throw new Error("Ticker is required.");
+  }
+
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("watchlist")
@@ -44,13 +71,20 @@ export async function addToWatchlist(
       user_id: userId,
       ticker: normalizedTicker,
     })
-    .select()
+    .select(
+      "id, user_id, ticker, created_at"
+    )
     .single();
 
   if (error) {
+    console.error(
+      "ADD WATCHLIST SUPABASE ERROR:",
+      error
+    );
+
     if (error.code === "23505") {
       throw new Error(
-        `${normalizedTicker} is already in your watchlist`
+        `${normalizedTicker} is already in your watchlist.`
       );
     }
 
@@ -60,17 +94,28 @@ export async function addToWatchlist(
   }
 
   return data;
-
 }
+
+// ========================================
+// REMOVE FROM WATCHLIST
+// ========================================
 
 export async function removeFromWatchlist(
   userId: string,
   ticker: string
 ): Promise<void> {
-  const supabase = await createClient();
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
 
   const normalizedTicker =
     ticker.trim().toUpperCase();
+
+  if (!normalizedTicker) {
+    throw new Error("Ticker is required.");
+  }
+
+  const supabase = await createClient();
 
   const { error } = await supabase
     .from("watchlist")
@@ -79,20 +124,37 @@ export async function removeFromWatchlist(
     .eq("ticker", normalizedTicker);
 
   if (error) {
+    console.error(
+      "REMOVE WATCHLIST SUPABASE ERROR:",
+      error
+    );
+
     throw new Error(
       `Failed to remove stock: ${error.message}`
     );
   }
 }
 
+// ========================================
+// CHECK WATCHLIST
+// ========================================
+
 export async function isInWatchlist(
   userId: string,
   ticker: string
 ): Promise<boolean> {
-  const supabase = await createClient();
+  if (!userId) {
+    return false;
+  }
 
   const normalizedTicker =
     ticker.trim().toUpperCase();
+
+  if (!normalizedTicker) {
+    return false;
+  }
+
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("watchlist")
@@ -102,12 +164,15 @@ export async function isInWatchlist(
     .maybeSingle();
 
   if (error) {
-  console.error("WATCHLIST SUPABASE ERROR:", error);
+    console.error(
+      "CHECK WATCHLIST SUPABASE ERROR:",
+      error
+    );
 
-  throw new Error(
-    `Failed to fetch watchlist: ${error.message}`
-  );
-}
+    throw new Error(
+      `Failed to check watchlist: ${error.message}`
+    );
+  }
 
   return data !== null;
 }

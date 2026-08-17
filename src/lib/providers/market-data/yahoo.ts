@@ -218,14 +218,58 @@ async getShareholding(
 
 
   // ========================================
-  // STOCK SEARCH
-  // ========================================
+// STOCK SEARCH
+// ========================================
 
-  async searchStocks(
-    query: string
-  ): Promise<StockSearchResult[]> {
+async searchStocks(
+  query: string
+): Promise<StockSearchResult[]> {
+
+  const normalizedQuery =
+    query.trim();
+
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  const response = await fetch(
+    `${MARKET_DATA_API}/api/search?q=${encodeURIComponent(
+      normalizedQuery
+    )}`,
+    {
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
     throw new Error(
-      `Stock search not implemented yet: ${query}`
+      `Failed to search stocks for "${normalizedQuery}"`
     );
   }
+
+  const data = await response.json();
+
+  const results =
+    Array.isArray(data)
+      ? data
+      : data.results ?? [];
+
+  return results.map(
+    (item: any): StockSearchResult => ({
+      ticker:
+        item.ticker ??
+        item.symbol ??
+        "",
+
+      companyName:
+        item.companyName ??
+        item.longname ??
+        item.shortname ??
+        item.name ??
+        item.ticker ??
+        item.symbol ??
+        "",
+    })
+  );
+}
 }

@@ -1,19 +1,152 @@
+
+import math
+
 import yfinance as yf
 
 
 class YahooFinanceService:
 
-    def get_quote(self, ticker: str):
-        stock = yf.Ticker(ticker)
-        info = stock.info
+    # ========================================
+    # HELPERS
+    # ========================================
+
+    @staticmethod
+    def safe_float(value):
+        """
+        Safely convert a value to float.
+
+        Returns None for:
+        - None
+        - invalid values
+        - NaN
+        - infinity
+        """
+
+        if value is None:
+            return None
+
+        try:
+            number = float(value)
+
+            if not math.isfinite(number):
+                return None
+
+            return number
+
+        except (TypeError, ValueError):
+            return None
+
+
+    @staticmethod
+    def validate_quote(
+        ticker: str,
+        info: dict,
+    ):
+        """
+        Validate that Yahoo Finance returned a
+        meaningful stock/security.
+
+        We require:
+        - company name
+        - some usable price information
+
+        This prevents invalid tickers such as
+        INVALID123 from being treated as valid.
+        """
 
         if not info:
             raise ValueError(
                 f"Stock not found: {ticker}"
             )
 
+        company_name = (
+            info.get("longName")
+            or info.get("shortName")
+            or info.get("displayName")
+        )
+
+        price = (
+            info.get("currentPrice")
+            or info.get("regularMarketPrice")
+            or info.get("previousClose")
+        )
+
+        if not company_name:
+            raise ValueError(
+                f"Stock not found: {ticker}"
+            )
+
+        if price is None:
+            raise ValueError(
+                f"Stock not found: {ticker}"
+            )
+
+        safe_price = YahooFinanceService.safe_float(
+            price
+        )
+
+        if safe_price is None:
+            raise ValueError(
+                f"Stock not found: {ticker}"
+            )
+
+        return True
+
+
+    # ========================================
+    # STOCK QUOTE
+    # ========================================
+
+    def get_quote(self, ticker: str):
+
+        ticker = ticker.strip().upper()
+
+        if not ticker:
+            raise ValueError(
+                "Ticker is required"
+            )
+
+        try:
+
+            stock = yf.Ticker(ticker)
+
+            info = stock.info
+
+        except Exception as error:
+
+            print(
+                f"Yahoo Finance error for {ticker}: "
+                f"{error}"
+            )
+
+            raise ValueError(
+                f"Unable to fetch stock data for {ticker}"
+            ) from error
+
+
         # --------------------------------
-        # Current Price
+        # VALIDATE STOCK
+        # --------------------------------
+
+        self.validate_quote(
+            ticker,
+            info,
+        )
+
+
+        # --------------------------------
+        # COMPANY NAME
+        # --------------------------------
+
+        company_name = (
+            info.get("longName")
+            or info.get("shortName")
+            or info.get("displayName")
+        )
+
+
+        # --------------------------------
+        # CURRENT PRICE
         # --------------------------------
 
         price = (
@@ -21,146 +154,238 @@ class YahooFinanceService:
             or info.get("regularMarketPrice")
         )
 
+        price = self.safe_float(price)
+
+
         # --------------------------------
-        # Previous Close
+        # PREVIOUS CLOSE
         # --------------------------------
 
         previous_close = (
-            info.get("regularMarketPreviousClose")
+            info.get(
+                "regularMarketPreviousClose"
+            )
             or info.get("previousClose")
         )
 
-        # --------------------------------
-        # Change
-        # --------------------------------
-
-        change = (
-            float(price) - float(previous_close)
-            if price is not None
-            and previous_close not in (None, 0)
-            else None
+        previous_close = self.safe_float(
+            previous_close
         )
 
+
         # --------------------------------
-        # Change %
+        # CHANGE
         # --------------------------------
 
-        change_percent = (
-            (change / float(previous_close)) * 100
-            if change is not None
-            else None
+        change = None
+
+        if (
+            price is not None
+            and previous_close is not None
+            and previous_close != 0
+        ):
+
+            change = (
+                price - previous_close
+            )
+
+
+        # --------------------------------
+        # CHANGE %
+        # --------------------------------
+
+        change_percent = None
+
+        if (
+            change is not None
+            and previous_close is not None
+            and previous_close != 0
+        ):
+
+            change_percent = (
+                change
+                / previous_close
+            ) * 100
+
+
+        # --------------------------------
+        # MARKET DATA
+        # --------------------------------
+
+        market_cap = self.safe_float(
+            info.get("marketCap")
         )
 
+        volume = self.safe_float(
+            info.get("volume")
+        )
+
+        fifty_two_week_high = (
+            self.safe_float(
+                info.get("fiftyTwoWeekHigh")
+            )
+        )
+
+        fifty_two_week_low = (
+            self.safe_float(
+                info.get("fiftyTwoWeekLow")
+            )
+        )
+
+
         # --------------------------------
-        # Return normalized quote
+        # RETURN NORMALIZED QUOTE
         # --------------------------------
 
         return {
-            "ticker": ticker.upper(),
 
-            "companyName":
-                info.get("longName")
-                or info.get("shortName"),
+            "ticker": ticker,
+
+            "companyName": company_name,
 
             "price": price,
 
             "change": change,
 
-            "changePercent":
-                change_percent,
+            "changePercent": change_percent,
 
             "currency":
                 info.get("currency"),
 
-            "marketCap":
-                info.get("marketCap"),
+            "marketCap": market_cap,
 
-            "volume":
-                info.get("volume"),
-
-            # --------------------------------
-            # 52 Week Range
-            # --------------------------------
+            "volume": volume,
 
             "fiftyTwoWeekHigh":
-                info.get("fiftyTwoWeekHigh"),
+                fifty_two_week_high,
 
             "fiftyTwoWeekLow":
-                info.get("fiftyTwoWeekLow"),
+                fifty_two_week_low,
+
         }
 
 
-    # ====================================
+    # ========================================
     # FUNDAMENTALS
-    # ====================================
+    # ========================================
 
-    def get_fundamentals(self, ticker: str):
-        stock = yf.Ticker(ticker)
-        info = stock.info
+    def get_fundamentals(
+        self,
+        ticker: str,
+    ):
 
-        if not info:
+        ticker = ticker.strip().upper()
+
+        if not ticker:
             raise ValueError(
-                f"Stock not found: {ticker}"
+                "Ticker is required"
             )
 
-        return {
-            "ticker": ticker.upper(),
+        try:
 
-            # --------------------------------
+            stock = yf.Ticker(ticker)
+
+            info = stock.info
+
+        except Exception as error:
+
+            print(
+                f"Yahoo Finance fundamentals error "
+                f"for {ticker}: {error}"
+            )
+
+            raise ValueError(
+                f"Unable to fetch fundamentals for {ticker}"
+            ) from error
+
+
+        # --------------------------------
+        # VALIDATE STOCK
+        # --------------------------------
+
+        self.validate_quote(
+            ticker,
+            info,
+        )
+
+
+        # --------------------------------
+        # ROE
+        # --------------------------------
+
+        roe = self.safe_float(
+            info.get("returnOnEquity")
+        )
+
+        if roe is not None:
+            roe *= 100
+
+
+        # --------------------------------
+        # DIVIDEND YIELD
+        # --------------------------------
+
+        dividend_yield = self.safe_float(
+            info.get("dividendYield")
+        )
+
+
+        # --------------------------------
+        # RETURN
+        # --------------------------------
+
+        return {
+
+            "ticker": ticker,
+
             # Valuation
-            # --------------------------------
 
             "peRatio":
-                info.get("trailingPE"),
+                self.safe_float(
+                    info.get("trailingPE")
+                ),
 
             "pbRatio":
-                info.get("priceToBook"),
+                self.safe_float(
+                    info.get("priceToBook")
+                ),
 
-            # --------------------------------
             # Profitability
-            # --------------------------------
 
-            "roe": (
-                info.get("returnOnEquity") * 100
-                if info.get("returnOnEquity") is not None
-                else None
-            ),
+            "roe":
+                roe,
 
-            # --------------------------------
             # Financial Health
-            # --------------------------------
 
             "debtToEquity":
-                info.get("debtToEquity"),
+                self.safe_float(
+                    info.get("debtToEquity")
+                ),
 
-            # --------------------------------
             # Dividend
-            # --------------------------------
 
-            "dividendYield": (
-                info.get("dividendYield")
-                if info.get("dividendYield") is not None
-                else None
-            ),
+            "dividendYield":
+                dividend_yield,
 
-            # --------------------------------
             # Cash Flow
-            # --------------------------------
 
             "freeCashFlow":
-                info.get("freeCashflow"),
+                self.safe_float(
+                    info.get("freeCashflow")
+                ),
 
-            # --------------------------------
             # Earnings
-            # --------------------------------
 
             "eps":
-                info.get("trailingEps"),
+                self.safe_float(
+                    info.get("trailingEps")
+                ),
 
-            # --------------------------------
             # Market Cap
-            # --------------------------------
 
             "marketCap":
-                info.get("marketCap"),
+                self.safe_float(
+                    info.get("marketCap")
+                ),
+
         }

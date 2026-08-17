@@ -3,8 +3,12 @@ import yfinance as yf
 
 def safe_float(value):
     """
-    Convert a value to float safely.
-    Returns None for invalid / NaN values.
+    Safely convert a value to float.
+
+    Returns None for:
+    - None
+    - NaN
+    - invalid values
     """
 
     try:
@@ -13,7 +17,7 @@ def safe_float(value):
 
         result = float(value)
 
-        if result != result:  # NaN check
+        if result != result:  # NaN
             return None
 
         return result
@@ -22,178 +26,340 @@ def safe_float(value):
         return None
 
 
+def normalize_percentage(value):
+    """
+    Convert Yahoo/yfinance ownership values to 0-100%.
+
+    Examples:
+        0.25 -> 25.0
+        25   -> 25.0
+    """
+
+    number = safe_float(value)
+
+    if number is None:
+        return None
+
+    if 0 <= number <= 1:
+        number *= 100
+
+    return round(
+        min(max(number, 0), 100),
+        2,
+    )
+
+
 def get_shareholding(ticker: str):
+
+    ticker = ticker.strip().upper()
 
     stock = yf.Ticker(ticker)
 
-    institutional_holding = None
     insider_holding = None
+    institutional_holding = None
 
     # ========================================
-    # INSTITUTIONAL HOLDING
+    # 1. PRIMARY SOURCE: stock.info
     # ========================================
 
     try:
 
-        institutional = stock.institutional_holders
+        info = stock.info
 
-        if (
-            institutional is not None
-            and not institutional.empty
-            and "% Out" in institutional.columns
-        ):
+        if info:
 
-            values = institutional["% Out"].dropna()
+            # --------------------------------
+            # INSIDER OWNERSHIP
+            # --------------------------------
 
-            if not values.empty:
+            insider_holding = normalize_percentage(
+                info.get("heldPercentInsiders")
+            )
 
-                total = 0.0
+            # --------------------------------
+            # INSTITUTIONAL OWNERSHIP
+            # --------------------------------
 
-                for value in values:
-
-                    number = safe_float(value)
-
-                    if number is not None:
-                        total += number
-
-                # "% Out" is already represented
-                # as a decimal in yfinance.
-                #
-                # Example:
-                # 0.12 = 12%
-
-                institutional_holding = (
-                    total * 100
-                )
+            institutional_holding = normalize_percentage(
+                info.get("heldPercentInstitutions")
+            )
 
     except Exception as error:
 
         print(
-            f"Institutional holding error for "
-            f"{ticker}: {error}"
+            f"stock.info shareholding error "
+            f"for {ticker}: {error}"
         )
 
-        institutional_holding = None
+
+    # ========================================
+    # 2. FALLBACK: MAJOR HOLDERS
+    # ========================================
+
+    if (
+        insider_holding is None
+        or institutional_holding is None
+    ):
+
+        try:
+
+            major_holders = stock.major_holders
+
+            if (
+                major_holders is not None
+                and not major_holders.empty
+            ):
+
+                for _, row in major_holders.iterrows():
+
+                    if len(row) < 2:
+                        continue
+
+                    value = row.iloc[0]
+
+                    description = str(
+                        row.iloc[1]
+                    ).lower()
+
+                    percentage = (
+                        normalize_percentage(value)
+                    )
+
+                    if percentage is None:
+                        continue
+
+                    # --------------------------------
+                    # INSIDERS
+                    # --------------------------------
+
+                    if (
+                        insider_holding is None
+                        and "insider" in description
+                    ):
+
+                        insider_holding = percentage
+
+                    # --------------------------------
+                    # INSTITUTIONS
+                    # --------------------------------
+
+                    if (
+                        institutional_holding is None
+                        and (
+                            "institution" in description
+                            or "institutional" in description
+                        )
+                    ):
+
+                        institutional_holding = percentage
+
+        except Exception as error:
+
+            print(
+                f"major_holders fallback error "
+                f"for {ticker}: {error}"
+            )
 
 
     # ========================================
-    # INSIDER HOLDING
+    # 3. FALLBACK: INSIDER HOLDERS
     # ========================================
 
-    try:
+    if insider_holding is None:
 
-        insider = stock.insider_holders
+        try:
 
-        if (
-            insider is not None
-            and not insider.empty
-        ):
+            insider = stock.insider_holders
 
-            possible_columns = [
-                "% Held",
-                "% Owned",
-                "Percent Held",
-            ]
+            if (
+                insider is not None
+                and not insider.empty
+            ):
 
-            for column in possible_columns:
+                possible_columns = [
+                    "% Held",
+                    "% Owned",
+                    "Percent Held",
+                ]
 
-                if column in insider.columns:
+                for column in possible_columns:
+
+                    if column not in insider.columns:
+                        continue
 
                     values = (
                         insider[column]
                         .dropna()
                     )
 
-                    if not values.empty:
+                    numbers = []
 
-                        number = safe_float(
-                            values.iloc[0]
+                    for value in values:
+
+                        percentage = (
+                            normalize_percentage(
+                                value
+                            )
                         )
 
-                        if number is not None:
+                        if percentage is not None:
+                            numbers.append(
+                                percentage
+                            )
 
-                            # If yfinance returns
-                            # decimal representation
-                            # convert to percentage.
+                    if numbers:
 
-                            if number <= 1:
+                        # Do not sum individual insiders.
+                        # Use the largest available aggregate
+                        # ownership value.
 
-                                insider_holding = (
-                                    number * 100
-                                )
+                        insider_holding = max(
+                            numbers
+                        )
 
-                            else:
+                        break
 
-                                insider_holding = number
+        except Exception as error:
 
-                    break
-
-    except Exception as error:
-
-        print(
-            f"Insider holding error for "
-            f"{ticker}: {error}"
-        )
-
-        insider_holding = None
+            print(
+                f"insider_holders fallback error "
+                f"for {ticker}: {error}"
+            )
 
 
     # ========================================
-    # CLEAN VALUES
+    # 4. FALLBACK: INSTITUTIONAL HOLDERS
     # ========================================
 
-    if institutional_holding is not None:
+    if institutional_holding is None:
 
-        institutional_holding = min(
-            max(institutional_holding, 0),
-            100
-        )
+        try:
 
+            institutional = (
+                stock.institutional_holders
+            )
+
+            if (
+                institutional is not None
+                and not institutional.empty
+            ):
+
+                if "% Out" in institutional.columns:
+
+                    values = (
+                        institutional["% Out"]
+                        .dropna()
+                    )
+
+                    numbers = []
+
+                    for value in values:
+
+                        percentage = (
+                            normalize_percentage(
+                                value
+                            )
+                        )
+
+                        if percentage is not None:
+                            numbers.append(
+                                percentage
+                            )
+
+                    if numbers:
+
+                        # This is only an estimate.
+                        # Individual institutional rows
+                        # are not guaranteed to represent
+                        # the complete institutional category.
+
+                        institutional_holding = min(
+                            sum(numbers),
+                            100,
+                        )
+
+        except Exception as error:
+
+            print(
+                f"institutional_holders fallback error "
+                f"for {ticker}: {error}"
+            )
+
+
+    # ========================================
+    # 5. CLEAN VALUES
+    # ========================================
 
     if insider_holding is not None:
 
-        insider_holding = min(
-            max(insider_holding, 0),
-            100
+        insider_holding = round(
+            min(
+                max(
+                    insider_holding,
+                    0,
+                ),
+                100,
+            ),
+            2,
+        )
+
+
+    if institutional_holding is not None:
+
+        institutional_holding = round(
+            min(
+                max(
+                    institutional_holding,
+                    0,
+                ),
+                100,
+            ),
+            2,
         )
 
 
     # ========================================
-    # OTHER / UNCLASSIFIED
+    # 6. CALCULATE REMAINING OWNERSHIP
     # ========================================
 
-    known_percentage = 0.0
+    known_percentage = (
+        (insider_holding or 0)
+        + (institutional_holding or 0)
+    )
 
-    if institutional_holding is not None:
-        known_percentage += institutional_holding
+    # Prevent impossible values.
+    known_percentage = min(
+        max(known_percentage, 0),
+        100,
+    )
 
-    if insider_holding is not None:
-        known_percentage += insider_holding
-
-
-    other_holding = 100 - known_percentage
-
-    if other_holding < 0:
-        other_holding = 0
+    public_holding = round(
+        100 - known_percentage,
+        2,
+    )
 
 
     # ========================================
-    # RETURN
+    # 7. RETURN
     # ========================================
 
     return {
 
-        "ticker": ticker.upper(),
+        "ticker": ticker,
 
+        # Yahoo Finance generally does not give
+        # reliable Indian promoter classification.
         "promoterHolding": None,
 
         "institutionalHolding":
             institutional_holding,
 
+        # Yahoo does not reliably expose a complete
+        # mutual-fund ownership percentage.
         "mutualFundHolding": None,
 
         "publicHolding":
-            round(other_holding, 2),
+            public_holding,
 
         "insiderHolding":
             insider_holding,

@@ -1,12 +1,39 @@
+
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function createClient() {
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  const supabasePublishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl) {
+    console.error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL"
+    );
+
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL is not configured"
+    );
+  }
+
+  if (!supabasePublishableKey) {
+    console.error(
+      "Missing NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+    );
+
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not configured"
+    );
+  }
+
   const cookieStore = await cookies();
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabaseUrl,
+    supabasePublishableKey,
     {
       cookies: {
         getAll() {
@@ -25,8 +52,10 @@ export async function createClient() {
               }
             );
           } catch {
-            // Server Component cannot always
-            // modify cookies.
+            /*
+             * Server Components may not always
+             * be able to modify cookies.
+             */
           }
         },
       },

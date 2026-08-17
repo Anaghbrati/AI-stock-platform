@@ -20,11 +20,34 @@ interface ChartData {
   value: number;
 }
 
+const CHART_COLORS = [
+  "#ff6577",
+  "#38bdf8",
+  "#a78bfa",
+  "#34d399",
+  "#fbbf24",
+];
+
 export default function ShareholdingChart({
   shareholding,
 }: ShareholdingChartProps) {
 
   const data: ChartData[] = [];
+
+  // ========================================
+  // PROMOTERS
+  // ========================================
+
+  if (
+    shareholding.promoterHolding != null &&
+    shareholding.promoterHolding > 0
+  ) {
+    data.push({
+      name: "Promoters",
+      value: shareholding.promoterHolding,
+    });
+  }
+
 
   // ========================================
   // INSTITUTIONAL
@@ -35,14 +58,29 @@ export default function ShareholdingChart({
     shareholding.institutionalHolding > 0
   ) {
     data.push({
-      name: "Institutional",
+      name: "Institutions",
       value: shareholding.institutionalHolding,
     });
   }
 
 
   // ========================================
-  // INSIDER
+  // MUTUAL FUNDS
+  // ========================================
+
+  if (
+    shareholding.mutualFundHolding != null &&
+    shareholding.mutualFundHolding > 0
+  ) {
+    data.push({
+      name: "Mutual Funds",
+      value: shareholding.mutualFundHolding,
+    });
+  }
+
+
+  // ========================================
+  // INSIDERS
   // ========================================
 
   if (
@@ -80,14 +118,43 @@ export default function ShareholdingChart({
     return (
       <div className="rounded-2xl border border-white/[0.06] bg-[#101318] p-8">
 
-        <p className="text-center text-sm text-slate-500">
-          Shareholding data is currently unavailable
-          for this stock.
-        </p>
+        <div className="text-center">
+
+          <p className="text-sm font-semibold text-slate-300">
+            Shareholding data unavailable
+          </p>
+
+          <p className="mt-2 text-xs leading-5 text-slate-600">
+            Yahoo Finance does not currently provide
+            sufficient ownership information for this
+            stock.
+          </p>
+
+        </div>
 
       </div>
     );
   }
+
+
+  // ========================================
+  // CLEAN CHART VALUES
+  // ========================================
+
+  const cleanData = data
+    .map((item) => ({
+      ...item,
+      value: Math.max(
+        0,
+        Math.min(
+          Number(item.value) || 0,
+          100
+        )
+      ),
+    }))
+    .filter(
+      (item) => item.value > 0
+    );
 
 
   // ========================================
@@ -117,9 +184,9 @@ export default function ShareholdingChart({
       </div>
 
 
-      {/* PIE CHART */}
+      {/* PIE */}
 
-      <div className="h-[400px] w-full">
+      <div className="h-[420px] w-full">
 
         <ResponsiveContainer
           width="100%"
@@ -129,24 +196,36 @@ export default function ShareholdingChart({
           <PieChart>
 
             <Pie
-              data={data}
+              data={cleanData}
               dataKey="value"
               nameKey="name"
               cx="50%"
               cy="45%"
-              innerRadius={80}
-              outerRadius={135}
+              innerRadius={85}
+              outerRadius={145}
               paddingAngle={3}
-              label={({ name, value }) =>
-                `${name}: ${Number(value).toFixed(2)}%`
+              stroke="none"
+              label={({
+                name,
+                value,
+              }) =>
+                `${name}: ${Number(
+                  value
+                ).toFixed(2)}%`
               }
               labelLine={false}
             >
 
-              {data.map(
+              {cleanData.map(
                 (entry, index) => (
                   <Cell
-                    key={`cell-${index}`}
+                    key={`${entry.name}-${index}`}
+                    fill={
+                      CHART_COLORS[
+                        index %
+                          CHART_COLORS.length
+                      ]
+                    }
                   />
                 )
               )}
@@ -169,15 +248,17 @@ export default function ShareholdingChart({
                   "#ffffff",
               }}
               formatter={(value) => [
-                `${Number(value).toFixed(2)}%`,
-                "Holding",
+                `${Number(
+                  value
+                ).toFixed(2)}%`,
+                "Ownership",
               ]}
             />
 
 
             <Legend
               verticalAlign="bottom"
-              height={36}
+              height={42}
               wrapperStyle={{
                 fontSize: "12px",
                 color: "#94a3b8",
@@ -193,39 +274,61 @@ export default function ShareholdingChart({
 
       {/* BREAKDOWN */}
 
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
-        {data.map((item) => (
+        {cleanData.map(
+          (item, index) => (
 
-          <div
-            key={item.name}
-            className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4"
-          >
+            <div
+              key={item.name}
+              className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-4"
+            >
 
-            <p className="text-xs text-slate-600">
-              {item.name}
-            </p>
+              <div className="flex items-center gap-2">
 
-            <p className="mt-2 text-xl font-black text-white">
-              {item.value.toFixed(2)}%
-            </p>
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{
+                    backgroundColor:
+                      CHART_COLORS[
+                        index %
+                          CHART_COLORS.length
+                      ],
+                  }}
+                />
 
-          </div>
+                <p className="text-xs text-slate-600">
+                  {item.name}
+                </p>
 
-        ))}
+              </div>
+
+              <p className="mt-2 text-xl font-black text-white">
+                {item.value.toFixed(2)}%
+              </p>
+
+            </div>
+
+          )
+        )}
 
       </div>
 
 
-      {/* DISCLAIMER */}
+      {/* AVAILABLE DATA NOTICE */}
 
-      <p className="mt-5 text-xs leading-5 text-slate-600">
-        Ownership categories are based on data available
-        through Yahoo Finance. "Other / Unclassified"
-        represents the remaining ownership percentage
-        that could not be classified from the available
-        data.
-      </p>
+      <div className="mt-5 rounded-xl border border-white/[0.04] bg-white/[0.015] p-4">
+
+        <p className="text-xs leading-5 text-slate-600">
+          Ownership percentages are based on the
+          information currently available through Yahoo
+          Finance. Promoter and mutual-fund classifications
+          may be unavailable for some Indian stocks.
+          "Other / Unclassified" represents the remaining
+          percentage that could not be classified.
+        </p>
+
+      </div>
 
     </div>
   );

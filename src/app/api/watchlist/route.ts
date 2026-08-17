@@ -39,14 +39,12 @@ export async function GET() {
     const watchlist = await getWatchlist(user.id);
 
     /*
-     * Add live stock quote to every watchlist item
+     * Add live stock quote to every watchlist item.
      */
     const watchlistWithQuotes = await Promise.all(
       watchlist.map(async (item) => {
         try {
-          const stock = await getStockQuote(
-            item.ticker
-          );
+          const stock = await getStockQuote(item.ticker);
 
           return {
             ...item,
@@ -70,10 +68,7 @@ export async function GET() {
       watchlist: watchlistWithQuotes,
     });
   } catch (error) {
-    console.error(
-      "Watchlist GET error:",
-      error
-    );
+    console.error("Watchlist GET error:", error);
 
     return NextResponse.json(
       {
@@ -89,14 +84,13 @@ export async function GET() {
   }
 }
 
+
 /*
  * POST /api/watchlist
  *
  * Adds a stock to the logged-in user's watchlist.
  */
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
 
@@ -115,14 +109,37 @@ export async function POST(
       );
     }
 
-    const body = await request.json();
+    /*
+     * Read request body safely.
+     */
+    let body: unknown;
 
-    const ticker = body?.ticker;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          error: "Invalid JSON request body",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
-    if (
-      typeof ticker !== "string" ||
-      ticker.trim().length === 0
-    ) {
+    /*
+     * Validate ticker.
+     */
+    const ticker =
+      typeof body === "object" &&
+      body !== null &&
+      "ticker" in body &&
+      typeof (body as { ticker?: unknown }).ticker ===
+        "string"
+        ? (body as { ticker: string }).ticker
+        : null;
+
+    if (!ticker || ticker.trim().length === 0) {
       return NextResponse.json(
         {
           error: "Ticker is required",
@@ -137,14 +154,79 @@ export async function POST(
       ticker.trim().toUpperCase();
 
     /*
-     * Validate that the ticker exists
-     * before saving it.
+     * Basic ticker format protection.
+     *
+     * Allows:
+     * RELIANCE.NS
+     * TCS.NS
+     * INFY.NS
+     * AAPL
+     * TSLA
+     * ^NSEI
+     * ^BSESN
+     */
+    const tickerPattern =
+      /^[A-Z0-9^][A-Z0-9._^-]{0,19}$/;
+
+    if (!tickerPattern.test(normalizedTicker)) {
+      return NextResponse.json(
+        {
+          error: `Invalid ticker format: "${normalizedTicker}"`,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    /*
+     * ========================================
+     * REAL STOCK VALIDATION
+     * ========================================
+     *
+     * Do NOT only check whether getStockQuote()
+     * throws.
+     *
+     * Yahoo Finance can sometimes return an
+     * incomplete object for invalid symbols.
+     *
+     * We therefore verify that the quote contains
+     * meaningful stock information.
      */
     try {
-      await getStockQuote(normalizedTicker);
+      const quote = await getStockQuote(
+        normalizedTicker
+      );
+
+      const validQuote =
+        quote &&
+        typeof quote === "object" &&
+        typeof quote.ticker === "string" &&
+        quote.ticker.length > 0 &&
+        typeof quote.companyName === "string" &&
+        quote.companyName.trim().length > 0 &&
+        quote.price !== null &&
+        quote.price !== undefined &&
+        Number.isFinite(Number(quote.price));
+
+      if (!validQuote) {
+        console.error(
+          `Invalid stock quote returned for ${normalizedTicker}:`,
+          quote
+        );
+
+        return NextResponse.json(
+          {
+            error: `Stock "${normalizedTicker}" was not found`,
+          },
+          {
+            status: 404,
+          }
+        );
+      }
     } catch (error) {
       console.error(
-        "Ticker validation failed:",
+        `Ticker validation failed for ${normalizedTicker}:`,
         error
       );
 
@@ -159,21 +241,52 @@ export async function POST(
     }
 
     /*
-     * Ticker is valid — save it.
+     * ========================================
+     * SAVE TO SUPABASE
+     * ========================================
+     *
+     * Only reached after successful validation.
      */
-    const stock = await addToWatchlist(
-      user.id,
-      normalizedTicker
-    );
+    try {
+      const stock = await addToWatchlist(
+        user.id,
+        normalizedTicker
+      );
 
-    return NextResponse.json(
-      {
-        watchlist: stock,
-      },
-      {
-        status: 201,
+      return NextResponse.json(
+        {
+          watchlist: stock,
+        },
+        {
+          status: 201,
+        }
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to add stock to watchlist";
+
+      /*
+       * Duplicate watchlist item.
+       */
+      if (
+        message.includes(
+          "already in your watchlist"
+        )
+      ) {
+        return NextResponse.json(
+          {
+            error: message,
+          },
+          {
+            status: 409,
+          }
+        );
       }
-    );
+
+      throw error;
+    }
   } catch (error) {
     console.error(
       "Watchlist POST error:",
@@ -194,6 +307,7 @@ export async function POST(
   }
 }
 
+
 /*
  * DELETE /api/watchlist
  *
@@ -202,9 +316,7 @@ export async function POST(
  * Example:
  * DELETE /api/watchlist?ticker=RELIANCE.NS
  */
-export async function DELETE(
-  request: Request
-) {
+export async function DELETE(request: Request) {
   try {
     const supabase = await createClient();
 
@@ -242,9 +354,12 @@ export async function DELETE(
       );
     }
 
+    const normalizedTicker =
+      ticker.trim().toUpperCase();
+
     await removeFromWatchlist(
       user.id,
-      ticker.trim().toUpperCase()
+      normalizedTicker
     );
 
     return NextResponse.json({
@@ -269,4 +384,3 @@ export async function DELETE(
     );
   }
 }
-

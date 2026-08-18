@@ -4,6 +4,7 @@ import {
   getStockQuote,
 } from "../../../../lib/services/stock.service";
 
+
 interface RouteContext {
   params: Promise<{
     ticker: string;
@@ -123,6 +124,7 @@ export async function GET(
     );
 
     return NextResponse.json(
+      
       {
         error:
           error instanceof Error
@@ -139,6 +141,7 @@ export async function GET(
             "no-store, no-cache, must-revalidate",
         },
       }
+      
     );
   }
 }

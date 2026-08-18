@@ -10,12 +10,20 @@ import type {
   Alert,
 } from "../../types/alert";
 
+/*
+ * ============================================================
+ * ALERT REPOSITORY
+ * ============================================================
+ */
+
 const alertRepository =
   new SupabaseAlertRepository();
 
-// ========================================
-// TYPES
-// ========================================
+/*
+ * ============================================================
+ * TYPES
+ * ============================================================
+ */
 
 export interface AlertEvaluationResult {
   triggered: boolean;
@@ -41,9 +49,21 @@ export interface CheckAlertsResult {
   triggered: number;
 }
 
-// ========================================
-// EVALUATE ALERT
-// ========================================
+/*
+ * ============================================================
+ * EVALUATE ALERT
+ * ============================================================
+ *
+ * Pure function.
+ *
+ * It does not:
+ * - call Supabase
+ * - call Yahoo
+ * - make API requests
+ *
+ * It only determines whether the alert condition
+ * has been reached.
+ */
 
 export function evaluateAlert(
   alert: Alert,
@@ -54,6 +74,11 @@ export function evaluateAlert(
       "Current value must be a valid number"
     );
   }
+
+  /*
+   * Already inactive or already triggered alerts
+   * should never trigger again.
+   */
 
   if (
     !alert.is_active ||
@@ -68,23 +93,49 @@ export function evaluateAlert(
   let triggered = false;
 
   switch (alert.alert_type) {
+    /*
+     * PRICE ABOVE
+     */
+
     case "PRICE_ABOVE":
       triggered =
         currentValue >=
-        alert.target_value;
+        Number(alert.target_value);
       break;
+
+    /*
+     * PRICE BELOW
+     */
 
     case "PRICE_BELOW":
       triggered =
         currentValue <=
-        alert.target_value;
+        Number(alert.target_value);
       break;
+
+    /*
+     * PERCENT CHANGE
+     *
+     * Absolute comparison means:
+     *
+     * target +5%
+     * triggers at +5% or higher
+     *
+     * target -5%
+     * triggers at -5% or lower
+     */
 
     case "PERCENT_CHANGE":
       triggered =
         Math.abs(currentValue) >=
-        Math.abs(alert.target_value);
+        Math.abs(
+          Number(alert.target_value)
+        );
       break;
+
+    /*
+     * UNKNOWN TYPE
+     */
 
     default:
       throw new Error(
@@ -98,28 +149,45 @@ export function evaluateAlert(
   };
 }
 
-// ========================================
-// CHECK ALERTS FOR USER + TICKER
-// ========================================
-//
-// Used by:
-// POST /api/alerts/trigger
-//
-// The stock quote is already fetched by
-// the API route, so this function does NOT
-// fetch market data again.
-//
-// ========================================
+/*
+ * ============================================================
+ * CHECK ALERTS FOR USER + TICKER
+ * ============================================================
+ *
+ * Used when the caller already has market data.
+ *
+ * Example:
+ *
+ * POST /api/alerts/check
+ *
+ * The API route fetches:
+ *
+ * quote
+ *   ↓
+ * checkAlertsForTicker()
+ *
+ * Therefore this function does NOT fetch the quote again.
+ *
+ * ============================================================
+ */
 
 export async function checkAlertsForTicker(
   userId: string,
   marketData: AlertMarketData
 ): Promise<CheckAlertsResult> {
+  /*
+   * Validate user
+   */
+
   if (!userId) {
     throw new Error(
       "Authenticated user is required"
     );
   }
+
+  /*
+   * Normalize ticker
+   */
 
   const normalizedTicker =
     marketData.ticker
@@ -132,6 +200,10 @@ export async function checkAlertsForTicker(
     );
   }
 
+  /*
+   * Validate price
+   */
+
   if (
     !Number.isFinite(
       marketData.price
@@ -142,9 +214,11 @@ export async function checkAlertsForTicker(
     );
   }
 
-  // ======================================
-  // 1. GET ACTIVE ALERTS
-  // ======================================
+  /*
+   * ==========================================================
+   * GET ACTIVE ALERTS
+   * ==========================================================
+   */
 
   const alerts =
     await alertRepository.getActiveAlertsByTicker(
@@ -152,12 +226,16 @@ export async function checkAlertsForTicker(
     );
 
   /*
-   * The repository currently returns
-   * active alerts for the ticker.
+   * ==========================================================
+   * SECURITY FILTER
+   * ==========================================================
    *
-   * Filter by authenticated user here
-   * so another user's alerts can never
-   * be triggered.
+   * Repository returns alerts for the ticker.
+   *
+   * We additionally filter by authenticated user.
+   *
+   * This ensures that one user cannot trigger
+   * another user's alerts.
    */
 
   const userAlerts =
@@ -165,6 +243,10 @@ export async function checkAlertsForTicker(
       (alert) =>
         alert.user_id === userId
     );
+
+  /*
+   * Nothing to process.
+   */
 
   if (
     userAlerts.length === 0
@@ -175,11 +257,17 @@ export async function checkAlertsForTicker(
     };
   }
 
-  // ======================================
-  // 2. PROCESS ALERTS
-  // ======================================
+  /*
+   * ==========================================================
+   * PROCESS ALERTS
+   * ==========================================================
+   */
 
   let triggered = 0;
+
+  /*
+   * Process independent alerts in parallel.
+   */
 
   await Promise.all(
     userAlerts.map(
@@ -187,6 +275,11 @@ export async function checkAlertsForTicker(
         let currentValue:
           | number
           | null;
+
+        /*
+         * Determine which market value
+         * this alert needs.
+         */
 
         switch (
           alert.alert_type
@@ -206,6 +299,10 @@ export async function checkAlertsForTicker(
             return;
         }
 
+        /*
+         * Ignore unavailable market data.
+         */
+
         if (
           currentValue === null ||
           !Number.isFinite(
@@ -215,9 +312,11 @@ export async function checkAlertsForTicker(
           return;
         }
 
-        // ==================================
-        // 3. EVALUATE CONDITION
-        // ==================================
+        /*
+         * ======================================================
+         * EVALUATE
+         * ======================================================
+         */
 
         const evaluation =
           evaluateAlert(
@@ -225,26 +324,25 @@ export async function checkAlertsForTicker(
             currentValue
           );
 
+        /*
+         * Condition not reached.
+         */
+
         if (
           !evaluation.triggered
         ) {
           return;
         }
 
-        // ==================================
-        // 4. TRIGGER ALERT
-        // ==================================
-
         /*
-         * The repository method updates
-         * only an alert that is still:
+         * ======================================================
+         * TRIGGER ALERT
+         * ======================================================
          *
-         * is_active = true
-         * is_triggered = false
+         * The repository should update only an alert
+         * that is still active and untriggered.
          *
-         * This protects against duplicate
-         * triggers when two requests arrive
-         * at almost the same time.
+         * This protects against duplicate triggers.
          */
 
         const updated =
@@ -255,35 +353,36 @@ export async function checkAlertsForTicker(
           );
 
         /*
-         * updateAlertTriggerState()
-         * returns null when another request
-         * already triggered this alert.
+         * null means another request already triggered
+         * the alert.
          */
 
-        if (updated) {
-          triggered++;
-
-          console.log(
-            "[Alert Triggered]",
-            {
-              alertId:
-                alert.id,
-
-              userId,
-
-              ticker:
-                normalizedTicker,
-
-              alertType:
-                alert.alert_type,
-
-              targetValue:
-                alert.target_value,
-
-              currentValue,
-            }
-          );
+        if (!updated) {
+          return;
         }
+
+        triggered++;
+
+        console.log(
+          "[Alert Triggered]",
+          {
+            alertId:
+              alert.id,
+
+            userId,
+
+            ticker:
+              normalizedTicker,
+
+            alertType:
+              alert.alert_type,
+
+            targetValue:
+              alert.target_value,
+
+            currentValue,
+          }
+        );
       }
     )
   );
@@ -296,24 +395,50 @@ export async function checkAlertsForTicker(
   };
 }
 
-// ========================================
-// PROCESS ALERTS FOR ONE TICKER
-// ========================================
-//
-// Optional background/server-side helper.
-//
-// This function fetches the quote itself.
-// The API route above should use
-// checkAlertsForTicker() when it already
-// has the quote.
-//
-// ========================================
+/*
+ * ============================================================
+ * PROCESS ALERTS FOR ONE TICKER
+ * ============================================================
+ *
+ * This function is used by:
+ *
+ * POST /api/alerts/process
+ *
+ * Unlike checkAlertsForTicker(), this function:
+ *
+ * 1. Finds active alerts
+ * 2. Fetches the stock quote
+ * 3. Evaluates all alerts
+ * 4. Triggers matching alerts
+ *
+ * IMPORTANT:
+ *
+ * The quote is fetched ONCE per ticker.
+ *
+ * If a user has:
+ *
+ * RELIANCE.NS PRICE_ABOVE
+ * RELIANCE.NS PRICE_BELOW
+ * RELIANCE.NS PERCENT_CHANGE
+ *
+ * we do NOT fetch RELIANCE.NS three times.
+ *
+ * ============================================================
+ */
 
 export async function processTickerAlerts(
   ticker: string
 ): Promise<AlertProcessingResult> {
+  /*
+   * ==========================================================
+   * 1. NORMALIZE TICKER
+   * ==========================================================
+   */
+
   const normalizedTicker =
-    ticker.trim().toUpperCase();
+    ticker
+      .trim()
+      .toUpperCase();
 
   if (!normalizedTicker) {
     throw new Error(
@@ -321,58 +446,149 @@ export async function processTickerAlerts(
     );
   }
 
-  // ======================================
-  // 1. FETCH ACTIVE ALERTS
-  // ======================================
+  /*
+   * ==========================================================
+   * 2. GET ACTIVE ALERTS
+   * ==========================================================
+   */
 
   const alerts =
     await alertRepository.getActiveAlertsByTicker(
       normalizedTicker
     );
 
+  /*
+   * No active alerts.
+   */
+
   if (
     alerts.length === 0
   ) {
     return {
-      ticker: normalizedTicker,
+      ticker:
+        normalizedTicker,
+
       processed: 0,
+
       triggered: 0,
+
       skipped: 0,
+
       failed: 0,
     };
   }
 
-  // ======================================
-  // 2. FETCH QUOTE ONCE
-  // ======================================
+  /*
+   * ==========================================================
+   * 3. FETCH STOCK QUOTE ONCE
+   * ==========================================================
+   *
+   * This is the important optimization.
+   *
+   * One ticker
+   *     ↓
+   * one stock request
+   *     ↓
+   * multiple alert evaluations
+   */
 
   const quote =
     await getStockQuote(
       normalizedTicker
     );
 
+  /*
+   * Quote unavailable.
+   *
+   * The alerts were found, but we could not evaluate them.
+   */
+
   if (!quote) {
     return {
-      ticker: normalizedTicker,
-      processed: alerts.length,
+      ticker:
+        normalizedTicker,
+
+      processed:
+        alerts.length,
+
       triggered: 0,
-      skipped: alerts.length,
+
+      skipped:
+        alerts.length,
+
       failed: 0,
     };
   }
 
-  // ======================================
-  // 3. PROCESS ALERTS
-  // ======================================
+  /*
+   * ==========================================================
+   * 4. VALIDATE PRICE
+   * ==========================================================
+   */
+
+  const price =
+    Number(quote.price);
+
+  if (
+    !Number.isFinite(price)
+  ) {
+    return {
+      ticker:
+        normalizedTicker,
+
+      processed:
+        alerts.length,
+
+      triggered: 0,
+
+      skipped:
+        alerts.length,
+
+      failed: 1,
+    };
+  }
+
+  /*
+   * Normalize percentage change.
+   */
+
+  const changePercent =
+    quote.changePercent !==
+      null &&
+    quote.changePercent !==
+      undefined
+      ? Number(
+          quote.changePercent
+        )
+      : null;
+
+  /*
+   * ==========================================================
+   * 5. PROCESS ALERTS
+   * ==========================================================
+   */
 
   let triggered = 0;
   let skipped = 0;
   let failed = 0;
 
+  /*
+   * Each alert is independent.
+   *
+   * Promise.allSettled() means one failed alert
+   * does not stop the other alerts.
+   */
+
   const results =
     await Promise.allSettled(
       alerts.map(
         async (alert) => {
+          /*
+           * ================================================
+           * DETERMINE CURRENT VALUE
+           * ================================================
+           */
+
           let currentValue:
             | number
             | null;
@@ -383,27 +599,24 @@ export async function processTickerAlerts(
             case "PRICE_ABOVE":
             case "PRICE_BELOW":
               currentValue =
-                Number(
-                  quote.price
-                );
+                price;
               break;
 
             case "PERCENT_CHANGE":
               currentValue =
-                quote.changePercent !==
-                null &&
-                quote.changePercent !==
-                undefined
-                  ? Number(
-                      quote.changePercent
-                    )
-                  : null;
+                changePercent;
               break;
 
             default:
               skipped++;
               return;
           }
+
+          /*
+           * ================================================
+           * INVALID / UNAVAILABLE DATA
+           * ================================================
+           */
 
           if (
             currentValue === null ||
@@ -415,15 +628,21 @@ export async function processTickerAlerts(
             return;
           }
 
-          // ==================================
-          // EVALUATE
-          // ==================================
+          /*
+           * ================================================
+           * EVALUATE CONDITION
+           * ================================================
+           */
 
           const evaluation =
             evaluateAlert(
               alert,
               currentValue
             );
+
+          /*
+           * Condition has not been reached.
+           */
 
           if (
             !evaluation.triggered
@@ -432,9 +651,11 @@ export async function processTickerAlerts(
             return;
           }
 
-          // ==================================
-          // TRIGGER
-          // ==================================
+          /*
+           * ================================================
+           * TRIGGER ALERT
+           * ================================================
+           */
 
           const updated =
             await alertRepository.updateAlertTriggerState(
@@ -444,14 +665,18 @@ export async function processTickerAlerts(
             );
 
           /*
-           * null means another concurrent
-           * request already triggered it.
+           * If null is returned, another request
+           * already triggered this alert.
            */
 
           if (!updated) {
             skipped++;
             return;
           }
+
+          /*
+           * Successfully triggered.
+           */
 
           triggered++;
 
@@ -460,6 +685,9 @@ export async function processTickerAlerts(
             {
               alertId:
                 alert.id,
+
+              userId:
+                alert.user_id,
 
               ticker:
                 normalizedTicker,
@@ -477,9 +705,11 @@ export async function processTickerAlerts(
       )
     );
 
-  // ======================================
-  // 4. COUNT FAILURES
-  // ======================================
+  /*
+   * ==========================================================
+   * 6. COUNT FAILED ALERTS
+   * ==========================================================
+   */
 
   for (
     const result of results
@@ -497,9 +727,11 @@ export async function processTickerAlerts(
     }
   }
 
-  // ======================================
-  // 5. RETURN RESULT
-  // ======================================
+  /*
+   * ==========================================================
+   * 7. RETURN RESULT
+   * ==========================================================
+   */
 
   return {
     ticker:

@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -38,22 +37,13 @@ export default function CreateAlertForm({
     useState(false);
 
   /*
-   * Keep ticker synchronized when the
-   * stock page changes.
-   *
-   * Example:
-   *
-   * /stock/RELIANCE.NS
-   * /stock/TCS.NS
+   * Keep ticker synchronized with
+   * the URL/query parameter.
    */
   useEffect(() => {
-    if (initialTicker) {
-      setTicker(
-        initialTicker
-          .trim()
-          .toUpperCase()
-      );
-    }
+    setTicker(
+      initialTicker?.trim().toUpperCase() ?? ""
+    );
   }, [initialTicker]);
 
   async function handleSubmit(
@@ -92,12 +82,12 @@ export default function CreateAlertForm({
         "/api/alerts",
         {
           method: "POST",
-
           headers: {
             "Content-Type":
               "application/json",
+            Accept:
+              "application/json",
           },
-
           body: JSON.stringify({
             ticker: normalizedTicker,
             alert_type: alertType,
@@ -118,12 +108,10 @@ export default function CreateAlertForm({
       }
 
       /*
-       * Clear only the target and
-       * reset the alert type.
+       * Keep the ticker when coming from
+       * Watchlist / stock page.
        *
-       * On a stock page we keep the
-       * ticker because it belongs to
-       * the current stock.
+       * Otherwise clear it after creation.
        */
       if (!initialTicker) {
         setTicker("");
@@ -131,7 +119,6 @@ export default function CreateAlertForm({
 
       setTargetValue("");
       setAlertType("PRICE_ABOVE");
-
       setSuccess(true);
 
       onCreated();
@@ -151,7 +138,7 @@ export default function CreateAlertForm({
     }
   }
 
-  const isStockPage =
+  const hasPrefilledTicker =
     Boolean(initialTicker);
 
   return (
@@ -172,10 +159,10 @@ export default function CreateAlertForm({
           New Alert
         </h2>
 
-        {isStockPage && (
+        {hasPrefilledTicker && (
           <p className="mt-2 text-xs text-slate-500">
-            Create an alert for{" "}
-            <span className="font-semibold text-slate-300">
+            Creating an alert for{" "}
+            <span className="font-semibold text-[#ff6577]">
               {ticker}
             </span>
           </p>
@@ -186,41 +173,48 @@ export default function CreateAlertForm({
           FORM
       ====================================================== */}
 
-      <div
-        className={
-          isStockPage
-            ? "grid gap-5 md:grid-cols-2"
-            : "grid gap-5 md:grid-cols-3"
-        }
-      >
+      <div className="grid gap-5 md:grid-cols-3">
+
         {/* ===================================================
             TICKER
         ==================================================== */}
 
-        {!isStockPage && (
-          <div>
-            <label
-              htmlFor="alert-ticker"
-              className="mb-2 block text-xs font-semibold text-slate-400"
-            >
-              Stock ticker
-            </label>
+        <div>
+          <label
+            htmlFor="alert-ticker"
+            className="mb-2 block text-xs font-semibold text-slate-400"
+          >
+            Stock ticker
+          </label>
 
+          <div className="relative">
             <input
               id="alert-ticker"
               value={ticker}
               onChange={(event) =>
                 setTicker(
                   event.target.value
+                    .toUpperCase()
                 )
               }
               placeholder="RELIANCE.NS"
               autoComplete="off"
+              spellCheck={false}
               disabled={loading}
-              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-700 transition focus:border-[#ff4d61]/40 focus:bg-white/[0.04]"
+              className={`w-full rounded-xl border px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white outline-none placeholder:text-slate-700 transition focus:border-[#ff4d61]/40 focus:bg-white/[0.04] ${
+                hasPrefilledTicker
+                  ? "border-[#ff4d61]/20 bg-[#ff4d61]/[0.04]"
+                  : "border-white/[0.06] bg-white/[0.025]"
+              }`}
             />
+
+            {hasPrefilledTicker && (
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md border border-[#ff4d61]/20 bg-[#ff4d61]/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[#ff6577]">
+                Selected
+              </span>
+            )}
           </div>
-        )}
+        </div>
 
         {/* ===================================================
             ALERT TYPE
@@ -321,7 +315,11 @@ export default function CreateAlertForm({
       {success && (
         <div className="mt-5 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3">
           <p className="text-xs text-emerald-400">
-            Alert created successfully.
+            Alert created successfully for{" "}
+            <span className="font-semibold">
+              {ticker}
+            </span>
+            .
           </p>
         </div>
       )}

@@ -34,6 +34,7 @@ import FundamentalsCard from "../../../components/fundamentals/FundamentalsCard"
 import ShareholdingChart from "../../../components/shareholding/ShareholdingChart";
 import StockAlertButton from "../../../components/alerts/StockAlertButton";
 import WatchlistButton from "../../../components/watchlist/WatchlistButton";
+import DashboardShell from "../../../components/dashboard/DashboardShell";
 
 import {
   getStockQuote,
@@ -150,6 +151,7 @@ export default async function StockPage({
     });
 
   return (
+    <DashboardShell>
     <main className="min-h-screen bg-[#07090d] text-white">
       <div className="mx-auto max-w-[1500px] px-5 py-8 sm:px-8 lg:px-10">
 
@@ -272,6 +274,7 @@ export default async function StockPage({
         <div className="h-10" />
       </div>
     </main>
+    </DashboardShell>
   );
 }
 

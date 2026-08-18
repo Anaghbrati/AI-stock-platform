@@ -13,6 +13,55 @@ const MARKET_DATA_API =
   process.env.MARKET_DATA_API_URL ||
   "http://localhost:8000";
 
+// ========================================
+// REQUEST CONFIG
+// ========================================
+
+const QUOTE_MAX_ATTEMPTS = 2;
+
+// Individual quote requests should never
+// block the Markets page for too long.
+const QUOTE_TIMEOUT_MS = 2500;
+
+// Retry delay only applies to transient errors.
+const RETRY_DELAY_MS = 250;
+
+// ========================================
+// HELPERS
+// ========================================
+
+function createTimeoutSignal(
+  timeoutMs: number
+): {
+  signal: AbortSignal;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => clearTimeout(timeout),
+  };
+}
+
+function isRetryableStatus(
+  status: number
+): boolean {
+  return (
+    status === 408 ||
+    status === 429 ||
+    status >= 500
+  );
+}
+
+// ========================================
+// PROVIDER
+// ========================================
+
 export class YahooFinanceProvider
   implements MarketDataProvider
 {
@@ -30,15 +79,20 @@ export class YahooFinanceProvider
       throw new Error("Ticker is required");
     }
 
-    const maxAttempts = 3;
-
     let lastError: unknown;
 
     for (
       let attempt = 1;
-      attempt <= maxAttempts;
+      attempt <= QUOTE_MAX_ATTEMPTS;
       attempt++
     ) {
+      const {
+        signal,
+        cleanup,
+      } = createTimeoutSignal(
+        QUOTE_TIMEOUT_MS
+      );
+
       try {
         const response = await fetch(
           `${MARKET_DATA_API}/api/quote/${encodeURIComponent(
@@ -46,6 +100,7 @@ export class YahooFinanceProvider
           )}`,
           {
             cache: "no-store",
+            signal,
           }
         );
 
@@ -53,6 +108,10 @@ export class YahooFinanceProvider
           await response.json().catch(
             () => null
           );
+
+        // ========================================
+        // SUCCESS
+        // ========================================
 
         if (response.ok) {
           return {
@@ -95,14 +154,32 @@ export class YahooFinanceProvider
           };
         }
 
-        lastError = new Error(
+        const errorMessage =
           data?.detail ||
-            data?.error ||
-            `Quote request failed with status ${response.status}`
+          data?.error ||
+          `Quote request failed with status ${response.status}`;
+
+        lastError = new Error(
+          errorMessage
         );
 
+        // ========================================
+        // IMPORTANT:
+        // 404 = STOCK DOES NOT EXIST
+        //
+        // DO NOT RETRY.
+        // ========================================
+
+        if (
+          !isRetryableStatus(
+            response.status
+          )
+        ) {
+          throw lastError;
+        }
+
         console.warn(
-          `[MarketData] Quote attempt ${attempt}/${maxAttempts} failed`,
+          `[MarketData] Retryable quote failure ${attempt}/${QUOTE_MAX_ATTEMPTS}`,
           {
             ticker: normalizedTicker,
             status: response.status,
@@ -111,24 +188,69 @@ export class YahooFinanceProvider
       } catch (error) {
         lastError = error;
 
-        console.warn(
-          `[MarketData] Quote attempt ${attempt}/${maxAttempts} failed`,
-          error
-        );
+        // AbortController timeout
+        if (
+          error instanceof DOMException &&
+          error.name === "AbortError"
+        ) {
+          console.warn(
+            `[MarketData] Quote timeout`,
+            {
+              ticker: normalizedTicker,
+              attempt,
+              timeoutMs:
+                QUOTE_TIMEOUT_MS,
+            }
+          );
+        } else {
+          // Non-retryable errors should immediately
+          // leave the retry loop.
+          const message =
+            error instanceof Error
+              ? error.message
+              : String(error);
+
+          if (
+            message.startsWith(
+              "Stock not found"
+            )
+          ) {
+            throw error;
+          }
+
+          console.warn(
+            `[MarketData] Quote attempt ${attempt}/${QUOTE_MAX_ATTEMPTS} failed`,
+            {
+              ticker: normalizedTicker,
+              error,
+            }
+          );
+        }
+      } finally {
+        cleanup();
       }
 
-      if (attempt < maxAttempts) {
-        await new Promise((resolve) =>
-          setTimeout(
-            resolve,
-            500 * attempt
-          )
+      // ========================================
+      // RETRY ONLY IF ANOTHER ATTEMPT EXISTS
+      // ========================================
+
+      if (
+        attempt <
+        QUOTE_MAX_ATTEMPTS
+      ) {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              RETRY_DELAY_MS *
+                attempt
+            )
         );
       }
     }
 
     throw new Error(
-      `Failed to fetch quote for ${normalizedTicker} after ${maxAttempts} attempts`,
+      `Failed to fetch quote for ${normalizedTicker} after ${QUOTE_MAX_ATTEMPTS} attempts`,
       {
         cause: lastError,
       }

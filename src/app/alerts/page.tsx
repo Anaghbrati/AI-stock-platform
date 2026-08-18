@@ -1,19 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useSearchParams,
+} from "next/navigation";
 
 import type { Alert } from "../../types/alert";
 
 import DashboardShell from "../../components/dashboard/DashboardShell";
 import CreateAlertForm from "../../components/alerts/CreateAlertForm";
+import AlertCard from "../../components/alerts/AlertCard";
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
 
-  async function loadAlerts(isRefresh = false) {
+  /*
+   * Read ticker directly from:
+   *
+   * /alerts?ticker=RELIANCE.NS
+   *
+   * This does NOT require an API request.
+   */
+  const tickerFromUrl =
+    searchParams.get("ticker")?.trim().toUpperCase() ?? "";
+
+  const [alerts, setAlerts] =
+    useState<Alert[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
+  // ==========================================================
+  // LOAD ALERTS
+  // ==========================================================
+
+  async function loadAlerts(
+    isRefresh = false
+  ) {
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -23,25 +56,43 @@ export default function AlertsPage() {
 
       setError(null);
 
-      const response = await fetch("/api/alerts", {
-        method: "GET",
-        cache: "no-store",
-      });
+      const response = await fetch(
+        "/api/alerts",
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Accept:
+              "application/json",
+          },
+        }
+      );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || "Failed to load alerts"
+          data?.error ||
+            "Failed to load alerts."
         );
       }
 
-      setAlerts(data.alerts ?? []);
+      setAlerts(
+        Array.isArray(data?.alerts)
+          ? data.alerts
+          : []
+      );
     } catch (error) {
+      console.error(
+        "Load alerts error:",
+        error
+      );
+
       setError(
         error instanceof Error
           ? error.message
-          : "Failed to load alerts"
+          : "Failed to load alerts."
       );
     } finally {
       setLoading(false);
@@ -49,25 +100,45 @@ export default function AlertsPage() {
     }
   }
 
+  // ==========================================================
+  // INITIAL LOAD
+  // ==========================================================
+
   useEffect(() => {
     loadAlerts();
   }, []);
-  useEffect(() => {
-  async function processAlerts() {
-    try {
-      await fetch("/api/alerts/process", {
-        method: "POST",
-      });
-    } catch (error) {
-      console.error(
-        "Failed to process alerts:",
-        error
-      );
-    }
-  }
 
-  processAlerts();
-}, []);
+  // ==========================================================
+  // PROCESS ALERTS
+  // ==========================================================
+
+  useEffect(() => {
+    async function processAlerts() {
+      try {
+        await fetch(
+          "/api/alerts/process",
+          {
+            method: "POST",
+            headers: {
+              Accept:
+                "application/json",
+            },
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Failed to process alerts:",
+          error
+        );
+      }
+    }
+
+    processAlerts();
+  }, []);
+
+  // ==========================================================
+  // RENDER
+  // ==========================================================
 
   return (
     <DashboardShell>
@@ -97,8 +168,13 @@ export default function AlertsPage() {
 
             <button
               type="button"
-              onClick={() => loadAlerts(true)}
-              disabled={refreshing || loading}
+              onClick={() =>
+                loadAlerts(true)
+              }
+              disabled={
+                refreshing ||
+                loading
+              }
               className="w-fit rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {refreshing
@@ -109,15 +185,16 @@ export default function AlertsPage() {
           </div>
         </section>
 
-
         {/* =====================================================
             CREATE ALERT
         ====================================================== */}
 
         <CreateAlertForm
-          onCreated={() => loadAlerts(true)}
+          ticker={tickerFromUrl}
+          onCreated={() =>
+            loadAlerts(true)
+          }
         />
-
 
         {/* =====================================================
             STATS
@@ -125,16 +202,21 @@ export default function AlertsPage() {
 
         <section className="grid gap-4 sm:grid-cols-3">
 
+          {/* TOTAL */}
+
           <div className="rounded-2xl border border-white/[0.06] bg-[#101318] p-5">
             <p className="text-xs font-medium text-slate-500">
               Total alerts
             </p>
 
             <p className="mt-2 text-2xl font-black text-white">
-              {loading ? "—" : alerts.length}
+              {loading
+                ? "—"
+                : alerts.length}
             </p>
           </div>
 
+          {/* ACTIVE */}
 
           <div className="rounded-2xl border border-white/[0.06] bg-[#101318] p-5">
             <p className="text-xs font-medium text-slate-500">
@@ -146,11 +228,13 @@ export default function AlertsPage() {
                 ? "—"
                 : alerts.filter(
                     (alert) =>
-                      alert.is_active
+                      alert.is_active &&
+                      !alert.is_triggered
                   ).length}
             </p>
           </div>
 
+          {/* TRIGGERED */}
 
           <div className="rounded-2xl border border-white/[0.06] bg-[#101318] p-5">
             <p className="text-xs font-medium text-slate-500">
@@ -169,7 +253,6 @@ export default function AlertsPage() {
 
         </section>
 
-
         {/* =====================================================
             ALERT LIST
         ====================================================== */}
@@ -186,53 +269,55 @@ export default function AlertsPage() {
             </h2>
           </div>
 
-
           {/* LOADING */}
 
           {loading && (
             <div className="space-y-3">
 
-              {[1, 2, 3].map((item) => (
-                <div
-                  key={item}
-                  className="animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318] p-5"
-                >
-                  <div className="h-4 w-32 rounded bg-white/[0.06]" />
+              {[1, 2, 3].map(
+                (item) => (
+                  <div
+                    key={item}
+                    className="animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318] p-5"
+                  >
+                    <div className="h-4 w-32 rounded bg-white/[0.06]" />
 
-                  <div className="mt-3 h-3 w-24 rounded bg-white/[0.04]" />
+                    <div className="mt-3 h-3 w-24 rounded bg-white/[0.04]" />
 
-                  <div className="mt-6 h-3 w-40 rounded bg-white/[0.04]" />
-                </div>
-              ))}
+                    <div className="mt-6 h-3 w-40 rounded bg-white/[0.04]" />
+                  </div>
+                )
+              )}
 
             </div>
           )}
-
 
           {/* ERROR */}
 
-          {!loading && error && (
-            <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.04] p-6">
+          {!loading &&
+            error && (
+              <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.04] p-6">
 
-              <p className="text-sm font-semibold text-red-400">
-                Unable to load alerts
-              </p>
+                <p className="text-sm font-semibold text-red-400">
+                  Unable to load alerts
+                </p>
 
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                {error}
-              </p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {error}
+                </p>
 
-              <button
-                type="button"
-                onClick={() => loadAlerts()}
-                className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
-              >
-                Retry
-              </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    loadAlerts()
+                  }
+                  className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
+                >
+                  Retry
+                </button>
 
-            </div>
-          )}
-
+              </div>
+            )}
 
           {/* EMPTY */}
 
@@ -257,7 +342,6 @@ export default function AlertsPage() {
               </div>
             )}
 
-
           {/* ALERTS */}
 
           {!loading &&
@@ -265,15 +349,17 @@ export default function AlertsPage() {
             alerts.length > 0 && (
               <div className="space-y-3">
 
-                {alerts.map((alert) => (
-                  <AlertCard
-                    key={alert.id}
-                    alert={alert}
-                    onUpdated={() =>
-                      loadAlerts(true)
-                    }
-                  />
-                ))}
+                {alerts.map(
+                  (alert) => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      onUpdated={() =>
+                        loadAlerts(true)
+                      }
+                    />
+                  )
+                )}
 
               </div>
             )}
@@ -282,269 +368,5 @@ export default function AlertsPage() {
 
       </div>
     </DashboardShell>
-  );
-}
-
-
-/* =============================================================
-   ALERT CARD
-============================================================= */
-
-interface AlertCardProps {
-  alert: Alert;
-  onUpdated: () => void;
-}
-
-function AlertCard({
-  alert,
-  onUpdated,
-}: AlertCardProps) {
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const status = alert.is_triggered
-    ? "Triggered"
-    : alert.is_active
-      ? "Active"
-      : "Inactive";
-
-  const statusClass =
-    alert.is_triggered
-      ? "border-[#ff4d61]/20 bg-[#ff4d61]/10 text-[#ff6577]"
-      : alert.is_active
-        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-        : "border-white/[0.06] bg-white/[0.025] text-slate-500";
-
-  const alertDescription =
-    alert.alert_type === "PRICE_ABOVE"
-      ? "Price above"
-      : alert.alert_type === "PRICE_BELOW"
-        ? "Price below"
-        : "Percentage change";
-
-
-  /* =========================================================
-     TOGGLE ACTIVE STATE
-  ========================================================= */
-
-  async function toggleActive() {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(
-        `/api/alerts/${alert.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            is_active:
-              !alert.is_active,
-          }),
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Failed to update alert"
-        );
-      }
-
-      onUpdated();
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to update alert"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-
-  /* =========================================================
-     DELETE
-  ========================================================= */
-
-  async function handleDelete() {
-    const confirmed =
-      window.confirm(
-        `Delete alert for ${alert.ticker}?`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(
-        `/api/alerts/${alert.id}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Failed to delete alert"
-        );
-      }
-
-      onUpdated();
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to delete alert"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-
-  return (
-    <article className="rounded-2xl border border-white/[0.06] bg-[#101318] p-5 transition hover:border-white/[0.1]">
-
-      <div className="flex flex-col gap-5">
-
-        {/* TOP */}
-
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-
-          {/* LEFT */}
-
-          <div className="min-w-0">
-
-            <div className="flex flex-wrap items-center gap-3">
-
-              <h3 className="text-base font-bold text-white">
-                {alert.ticker}
-              </h3>
-
-              <span
-                className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${statusClass}`}
-              >
-                {status}
-              </span>
-
-            </div>
-
-            <p className="mt-2 text-xs text-slate-500">
-              {alertDescription}
-            </p>
-
-          </div>
-
-
-          {/* VALUES */}
-
-          <div className="flex flex-wrap items-center gap-6">
-
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-700">
-                Target
-              </p>
-
-              <p className="mt-1 text-sm font-semibold text-white">
-                {alert.target_value}
-              </p>
-            </div>
-
-
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-700">
-                Current
-              </p>
-
-              <p className="mt-1 text-sm font-semibold text-slate-300">
-                {alert.current_value ?? "—"}
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-
-
-        {/* ERROR */}
-
-        {error && (
-          <p className="text-xs text-red-400">
-            {error}
-          </p>
-        )}
-
-
-        {/* ACTIONS */}
-
-        <div className="flex flex-wrap gap-2 border-t border-white/[0.05] pt-4">
-
-          <button
-            type="button"
-            onClick={toggleActive}
-            disabled={
-              loading ||
-              alert.is_triggered
-            }
-            className="rounded-lg border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-[11px] font-semibold text-slate-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {loading
-              ? "Updating..."
-              : alert.is_active
-                ? "Deactivate"
-                : "Activate"}
-          </button>
-
-
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={loading}
-            className="rounded-lg border border-red-500/10 bg-red-500/[0.03] px-3 py-2 text-[11px] font-semibold text-red-400 transition hover:bg-red-500/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Delete
-          </button>
-
-        </div>
-
-
-        {/* TRIGGER TIME */}
-
-        {alert.is_triggered &&
-          alert.triggered_at && (
-            <div className="border-t border-white/[0.05] pt-4">
-
-              <p className="text-[10px] text-slate-600">
-                Triggered{" "}
-                {new Date(
-                  alert.triggered_at
-                ).toLocaleString()}
-              </p>
-
-            </div>
-          )}
-
-      </div>
-
-    </article>
   );
 }

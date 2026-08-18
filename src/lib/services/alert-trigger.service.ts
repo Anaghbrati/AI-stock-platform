@@ -1,25 +1,8 @@
-import {
-  SupabaseAlertRepository,
-} from "../repositories/alerts/supabase-alert.repository";
+import { SupabaseAlertRepository } from "../repositories/alerts/supabase-alert.repository";
+import { getStockQuote } from "./stock.service";
+import type { Alert } from "../../types/alert";
 
-import {
-  getAlerts,
-} from "./alert.service";
-
-import {
-  getStockQuote,
-} from "./stock.service";
-
-import type {
-  Alert,
-} from "../../types/alert";
-
-const alertRepository =
-  new SupabaseAlertRepository();
-
-// =========================================================
-// TYPES
-// =========================================================
+const alertRepository = new SupabaseAlertRepository();
 
 export interface AlertEvaluationResult {
   triggered: boolean;
@@ -31,95 +14,62 @@ export interface AlertProcessingResult {
   triggered: number;
   skipped: number;
   failed: number;
+  durationMs: number;
 }
 
-// =========================================================
-// EVALUATE ALERT
-// =========================================================
-
+/**
+ * Pure O(1) alert-condition evaluation.
+ */
 export function evaluateAlert(
   alert: Alert,
   currentValue: number
 ): AlertEvaluationResult {
   if (!Number.isFinite(currentValue)) {
-    throw new Error(
-      "Current value must be a valid number"
-    );
+    throw new Error("Current value must be a valid number");
   }
 
-  // Ignore inactive or already-triggered alerts.
-  if (
-    !alert.is_active ||
-    alert.is_triggered
-  ) {
-    return {
-      triggered: false,
-      currentValue,
-    };
+  if (!alert.is_active || alert.is_triggered) {
+    return { triggered: false, currentValue };
   }
-
-  let triggered = false;
 
   switch (alert.alert_type) {
     case "PRICE_ABOVE":
-      triggered =
-        currentValue >=
-        alert.target_value;
-      break;
+      return {
+        triggered: currentValue >= alert.target_value,
+        currentValue,
+      };
 
     case "PRICE_BELOW":
-      triggered =
-        currentValue <=
-        alert.target_value;
-      break;
+      return {
+        triggered: currentValue <= alert.target_value,
+        currentValue,
+      };
 
     case "PERCENT_CHANGE":
-      triggered =
-        Math.abs(currentValue) >=
-        Math.abs(alert.target_value);
-      break;
+      return {
+        triggered: Math.abs(currentValue) >= Math.abs(alert.target_value),
+        currentValue,
+      };
 
     default:
-      throw new Error(
-        `Unsupported alert type: ${alert.alert_type}`
-      );
+      throw new Error(`Unsupported alert type: ${alert.alert_type}`);
   }
-
-  return {
-    triggered,
-    currentValue,
-  };
 }
 
-// =========================================================
-// PROCESS SINGLE ALERT
-// =========================================================
-
+/**
+ * Marks an alert as triggered.
+ * The repository performs an atomic is_active/is_triggered check,
+ * so concurrent cron executions cannot trigger the same alert twice.
+ */
 export async function processAlert(
   alert: Alert,
   currentValue: number
 ): Promise<Alert> {
-  const evaluation =
-    evaluateAlert(
-      alert,
-      currentValue
-    );
+  const evaluation = evaluateAlert(alert, currentValue);
 
   if (!evaluation.triggered) {
     return alert;
   }
-
-  console.log(
-    "[Alert Triggered]",
-    {
-      alertId: alert.id,
-      ticker: alert.ticker,
-      alertType: alert.alert_type,
-      targetValue:
-        alert.target_value,
-      currentValue,
-    }
-  );
 
   return alertRepository.updateAlertTriggerState(
     alert.user_id,
@@ -128,29 +78,140 @@ export async function processAlert(
   );
 }
 
-// =========================================================
-// PROCESS USER ALERTS
-// =========================================================
+/**
+ * Poll all active alerts.
+ *
+ * Performance design:
+ * - DB returns only active/untriggered alerts.
+ * - Unique tickers are fetched once, even when many users have
+ *   alerts for the same stock.
+ * - Quote requests run in parallel.
+ * - Database writes happen only for alerts that actually trigger.
+ *
+ * Evaluation work: O(A + T), where A = active alerts and
+ * T = unique tickers. Network quote requests: O(T), not O(A).
+ */
+export async function runAlertTriggerEngine(): Promise<AlertProcessingResult> {
+  const startedAt = performance.now();
+  const alerts = await alertRepository.getActiveAlerts();
 
+  if (alerts.length === 0) {
+    return {
+      processed: 0,
+      triggered: 0,
+      skipped: 0,
+      failed: 0,
+      durationMs: Math.round(performance.now() - startedAt),
+    };
+  }
+
+  const tickerSet = new Set<string>();
+  for (const alert of alerts) {
+    tickerSet.add(alert.ticker.trim().toUpperCase());
+  }
+
+  const tickers = [...tickerSet];
+
+  const quoteResults = await Promise.all(
+    tickers.map(async (ticker) => {
+      try {
+        return {
+          ticker,
+          quote: await getStockQuote(ticker),
+        };
+      } catch (error) {
+        console.error(`[AlertEngine] Quote failed for ${ticker}:`, error);
+        return { ticker, quote: null };
+      }
+    })
+  );
+
+  const quoteMap = new Map(
+    quoteResults.map(({ ticker, quote }) => [ticker, quote])
+  );
+
+  let triggered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  const jobs = alerts.map(async (alert) => {
+    const ticker = alert.ticker.trim().toUpperCase();
+    const quote = quoteMap.get(ticker);
+
+    if (!quote) {
+      skipped++;
+      return;
+    }
+
+    const currentValue =
+      alert.alert_type === "PERCENT_CHANGE"
+        ? quote.changePercent
+        : quote.price;
+
+    if (
+      typeof currentValue !== "number" ||
+      !Number.isFinite(currentValue)
+    ) {
+      skipped++;
+      return;
+    }
+
+    const evaluation = evaluateAlert(alert, currentValue);
+
+    if (!evaluation.triggered) {
+      skipped++;
+      return;
+    }
+
+    try {
+      await processAlert(alert, currentValue);
+      triggered++;
+    } catch (error) {
+      failed++;
+      console.error(
+        `[AlertEngine] Failed to trigger alert ${alert.id}:`,
+        error
+      );
+    }
+  });
+
+  await Promise.all(jobs);
+
+  const durationMs = Math.round(performance.now() - startedAt);
+
+  console.log("[AlertEngine] completed", {
+    processed: alerts.length,
+    uniqueTickers: tickers.length,
+    triggered,
+    skipped,
+    failed,
+    durationMs,
+  });
+
+  return {
+    processed: alerts.length,
+    triggered,
+    skipped,
+    failed,
+    durationMs,
+  };
+}
+
+/**
+ * Backwards-compatible user-scoped entry point for callers that already
+ * have a user ID. It intentionally delegates to the same O(A + T) engine.
+ */
 export async function processUserAlerts(
   userId: string
 ): Promise<AlertProcessingResult> {
   if (!userId) {
-    throw new Error(
-      "Authenticated user is required"
-    );
+    throw new Error("Authenticated user is required");
   }
 
-  const alerts =
-    await getAlerts(userId);
-
-  // Only active and untriggered alerts need processing.
-  const activeAlerts =
-    alerts.filter(
-      (alert) =>
-        alert.is_active &&
-        !alert.is_triggered
-    );
+  const alerts = await alertRepository.getAlerts(userId);
+  const activeAlerts = alerts.filter(
+    (alert) => alert.is_active && !alert.is_triggered
+  );
 
   if (activeAlerts.length === 0) {
     return {
@@ -158,222 +219,65 @@ export async function processUserAlerts(
       triggered: 0,
       skipped: 0,
       failed: 0,
+      durationMs: 0,
     };
   }
 
-  // =======================================================
-  // DEDUPLICATE TICKERS
-  // =======================================================
+  const tickerSet = new Set(
+    activeAlerts.map((alert) => alert.ticker.trim().toUpperCase())
+  );
 
-  const tickers = [
-    ...new Set(
-      activeAlerts.map(
-        (alert) =>
-          alert.ticker
-            .trim()
-            .toUpperCase()
-      )
-    ),
-  ];
+  const quoteResults = await Promise.all(
+    [...tickerSet].map(async (ticker) => ({
+      ticker,
+      quote: await getStockQuote(ticker).catch((error) => {
+        console.error(`[AlertEngine] Quote failed for ${ticker}:`, error);
+        return null;
+      }),
+    }))
+  );
 
-  // =======================================================
-  // FETCH QUOTES IN PARALLEL
-  // =======================================================
-
-  const quoteResults =
-    await Promise.all(
-      tickers.map(
-        async (ticker) => {
-          try {
-            const quote =
-              await getStockQuote(
-                ticker
-              );
-
-            return {
-              ticker,
-              quote,
-            };
-          } catch (error) {
-            console.error(
-              `[Alert] Quote failed for ${ticker}:`,
-              error
-            );
-
-            return {
-              ticker,
-              quote: null,
-            };
-          }
-        }
-      )
-    );
-
-  const quoteMap =
-    new Map(
-      quoteResults.map(
-        ({
-          ticker,
-          quote,
-        }) => [
-          ticker,
-          quote,
-        ]
-      )
-    );
+  const quoteMap = new Map(
+    quoteResults.map(({ ticker, quote }) => [ticker, quote])
+  );
 
   let triggered = 0;
   let skipped = 0;
   let failed = 0;
 
-  // =======================================================
-  // PROCESS ALERTS
-  // =======================================================
+  await Promise.all(
+    activeAlerts.map(async (alert) => {
+      const quote = quoteMap.get(alert.ticker.trim().toUpperCase());
+      const currentValue =
+        alert.alert_type === "PERCENT_CHANGE"
+          ? quote?.changePercent
+          : quote?.price;
 
-  const results =
-    await Promise.allSettled(
-      activeAlerts.map(
-        async (alert) => {
-          const ticker =
-            alert.ticker
-              .trim()
-              .toUpperCase();
+      if (typeof currentValue !== "number" || !Number.isFinite(currentValue)) {
+        skipped++;
+        return;
+      }
 
-          const quote =
-            quoteMap.get(
-              ticker
-            );
+      if (!evaluateAlert(alert, currentValue).triggered) {
+        skipped++;
+        return;
+      }
 
-          if (!quote) {
-            skipped++;
-            return;
-          }
-
-          let currentValue:
-            | number
-            | null = null;
-
-          // =================================================
-          // PRICE ALERT
-          // =================================================
-
-          switch (
-            alert.alert_type
-          ) {
-            case "PRICE_ABOVE":
-            case "PRICE_BELOW":
-              if (
-                quote.price ===
-                undefined
-              ) {
-                skipped++;
-                return;
-              }
-
-              currentValue =
-                Number(
-                  quote.price
-                );
-
-              break;
-
-            // ===============================================
-            // PERCENT CHANGE ALERT
-            // ===============================================
-
-            case "PERCENT_CHANGE":
-              if (
-                quote.changePercent ===
-                undefined
-              ) {
-                skipped++;
-                return;
-              }
-
-              currentValue =
-                Number(
-                  quote.changePercent
-                );
-
-              break;
-
-            default:
-              skipped++;
-              return;
-          }
-
-          // =================================================
-          // VALIDATE CURRENT VALUE
-          // =================================================
-
-          if (
-            currentValue ===
-              null ||
-            !Number.isFinite(
-              currentValue
-            )
-          ) {
-            skipped++;
-            return;
-          }
-
-          // =================================================
-          // CHECK CONDITION
-          // =================================================
-
-          const evaluation =
-            evaluateAlert(
-              alert,
-              currentValue
-            );
-
-          if (
-            !evaluation.triggered
-          ) {
-            skipped++;
-            return;
-          }
-
-          // =================================================
-          // UPDATE DATABASE
-          // =================================================
-
-          await processAlert(
-            alert,
-            currentValue
-          );
-
-          triggered++;
-        }
-      )
-    );
-
-  // =======================================================
-  // COUNT FAILED ALERTS
-  // =======================================================
-
-  for (const result of results) {
-    if (
-      result.status ===
-      "rejected"
-    ) {
-      failed++;
-
-      console.error(
-        "[Alert] Failed to process alert:",
-        result.reason
-      );
-    }
-  }
+      try {
+        await processAlert(alert, currentValue);
+        triggered++;
+      } catch (error) {
+        failed++;
+        console.error(`[AlertEngine] Failed to trigger ${alert.id}:`, error);
+      }
+    })
+  );
 
   return {
-    processed:
-      activeAlerts.length,
-
+    processed: activeAlerts.length,
     triggered,
-
     skipped,
-
     failed,
+    durationMs: 0,
   };
 }

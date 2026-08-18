@@ -10,6 +10,19 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+const secondaryNavigation = [
+  {
+    name: "Features",
+    href: "/features",
+    icon: "✦",
+  },
+  {
+    name: "Docs",
+    href: "/docs",
+    icon: "▤",
+  },
+];
+
 const primaryNavigation = [
   {
     name: "Dashboard",
@@ -27,6 +40,11 @@ const primaryNavigation = [
     icon: "☆",
   },
   {
+    name: "Alerts",
+    href: "/alerts",
+    icon: "◉",
+  },
+  {
     name: "AI Scanner",
     href: "/scanner",
     icon: "⌁",
@@ -42,20 +60,6 @@ const primaryNavigation = [
     icon: "▥",
   },
 ];
-
-const secondaryNavigation = [
-  {
-    name: "Features",
-    href: "/features",
-    icon: "✦",
-  },
-  {
-    name: "Docs",
-    href: "/docs",
-    icon: "▤",
-  },
-];
-
 export default function Sidebar({
   open,
   onClose,

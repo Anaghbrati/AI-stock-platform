@@ -20,6 +20,7 @@ const TechnicalSignal = dynamic(
     ),
   }
 );
+
 const StockChartContainer = dynamic(
   () => import("../../../components/charts/StockChartContainer"),
   {
@@ -31,6 +32,8 @@ const StockChartContainer = dynamic(
 
 import FundamentalsCard from "../../../components/fundamentals/FundamentalsCard";
 import ShareholdingChart from "../../../components/shareholding/ShareholdingChart";
+import StockAlertButton from "../../../components/alerts/StockAlertButton";
+import WatchlistButton from "../../../components/watchlist/WatchlistButton";
 
 import {
   getStockQuote,
@@ -58,13 +61,6 @@ type FinancialStatementsData = Awaited<
 type ShareholdingData = Awaited<
   ReturnType<typeof getShareholding>
 >;
-
-/*
- * IMPORTANT:
- *
- * The promises can resolve to null because the preload
- * requests have .catch(() => null).
- */
 
 type StockQuotePromise = Promise<
   StockQuoteData | null
@@ -102,29 +98,11 @@ export default async function StockPage({
     .toUpperCase();
 
   /*
-   * =======================================================
-   * PARALLEL DATA PRELOAD
-   * =======================================================
+   * Start all independent requests immediately.
    *
-   * IMPORTANT:
-   *
-   * We START all independent requests before awaiting
-   * any of them.
-   *
-   * This prevents:
+   * They run in parallel instead of:
    *
    * quote -> fundamentals -> financials -> shareholding
-   *
-   * from becoming sequential.
-   *
-   * Instead:
-   *
-   * quote
-   * fundamentals
-   * financials
-   * shareholding
-   *
-   * all start together.
    */
 
   const quotePromise: StockQuotePromise =
@@ -286,9 +264,9 @@ export default async function StockPage({
           }
         >
           <AnalysisSection
-  ticker={normalizedTicker}
-  stockPromise={quotePromise}
-/>
+            ticker={normalizedTicker}
+            stockPromise={quotePromise}
+          />
         </Suspense>
 
         <div className="h-10" />
@@ -329,7 +307,9 @@ async function StockOverview({
 
     return (
       <>
-        {/* HERO */}
+        {/* =================================================
+            HERO
+        ================================================= */}
 
         <section className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#101318]">
           <div className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full bg-[#ff4d61]/[0.06] blur-3xl" />
@@ -398,24 +378,27 @@ async function StockOverview({
                 </div>
               </div>
 
-              {/* WATCHLIST */}
+              {/* ACTIONS */}
 
-              <button
-                type="button"
-                className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-sm font-semibold text-slate-400 transition hover:border-[#ff4d61]/20 hover:bg-[#ff4d61]/5 hover:text-[#ff6678]"
-              >
-                <span className="text-lg">
-                  ☆
-                </span>
+              <div className="flex flex-wrap items-center gap-3">
 
-                Add to watchlist
-              </button>
+                <WatchlistButton
+                  ticker={ticker}
+                />
+
+                <StockAlertButton
+                  ticker={ticker}
+                />
+
+              </div>
 
             </div>
           </div>
         </section>
 
-        {/* QUICK STATS */}
+        {/* =================================================
+            QUICK STATS
+        ================================================= */}
 
         <section className="mt-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -475,7 +458,9 @@ async function StockOverview({
           </div>
         </section>
 
-        {/* MARKET INFORMATION */}
+        {/* =================================================
+            MARKET INFORMATION
+        ================================================= */}
 
         <section className="mt-6 rounded-2xl border border-white/[0.06] bg-[#101318] p-6 sm:p-7">
 
@@ -568,6 +553,7 @@ function StockOverviewFallback({
 
       <section className="mt-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+
           {Array.from({ length: 4 }).map(
             (_, index) => (
               <div
@@ -576,6 +562,7 @@ function StockOverviewFallback({
               />
             )
           )}
+
         </div>
       </section>
     </>
@@ -670,7 +657,9 @@ async function FinancialStatementsSection({
           </p>
         </div>
 
-        {/* ANNUAL */}
+        {/* =================================================
+            ANNUAL
+        ================================================= */}
 
         <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-[#101318]">
 
@@ -776,7 +765,9 @@ async function FinancialStatementsSection({
 
         </div>
 
-        {/* QUARTERLY */}
+        {/* =================================================
+            QUARTERLY
+        ================================================= */}
 
         <div className="mt-6 overflow-x-auto rounded-2xl border border-white/[0.06] bg-[#101318]">
 
@@ -978,14 +969,7 @@ async function AnalysisSection({
 
   try {
     /*
-     * =======================================================
-     * REUSE EXISTING STOCK QUOTE
-     * =======================================================
-     *
-     * StockPage already started the quote request.
-     *
-     * We reuse that same promise instead of making
-     * another quote request.
+     * Reuse the quote promise already started by StockPage.
      */
 
     const stock = await stockPromise;
@@ -997,27 +981,16 @@ async function AnalysisSection({
       stock?.changePercent ?? null;
 
     /*
-     * =======================================================
-     * ANALYSIS API URL
-     * =======================================================
+     * Build analysis API URL.
      */
 
     const analysisUrl = new URL(
-      `/api/analysis/${encodeURIComponent(
-        ticker
-      )}`,
+      `/api/analysis/${encodeURIComponent(ticker)}`,
       baseUrl
     );
 
     /*
-     * =======================================================
-     * PASS EXISTING QUOTE DATA
-     * =======================================================
-     *
-     * The analysis API can now use the quote that was
-     * already fetched by StockPage.
-     *
-     * This prevents another quote request.
+     * Pass existing quote values.
      */
 
     if (price !== null) {
@@ -1035,9 +1008,7 @@ async function AnalysisSection({
     }
 
     /*
-     * =======================================================
-     * CALL ANALYSIS API
-     * =======================================================
+     * Request analysis.
      */
 
     const analysisResponse =
@@ -1061,9 +1032,7 @@ async function AnalysisSection({
       await analysisResponse.json();
 
     /*
-     * =======================================================
-     * TECHNICAL DATA
-     * =======================================================
+     * Technical data.
      */
 
     const technical =
@@ -1080,9 +1049,7 @@ async function AnalysisSection({
       };
 
     /*
-     * =======================================================
-     * AI DATA
-     * =======================================================
+     * AI data.
      */
 
     const ai =
@@ -1093,12 +1060,6 @@ async function AnalysisSection({
         risk: "UNKNOWN",
         keyPoints: [],
       };
-
-    /*
-     * =======================================================
-     * RENDER
-     * =======================================================
-     */
 
     return (
       <section className="mt-6">

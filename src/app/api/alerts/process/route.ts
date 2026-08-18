@@ -1,33 +1,30 @@
+import { NextResponse } from "next/server";
+
+import { createClient } from "../../../../lib/supabase/server";
 
 import {
-  NextResponse,
-} from "next/server";
+  getStockQuote,
+} from "../../../../lib/services/stock.service";
 
 import {
-  createClient,
-} from "../../../../lib/supabase/server";
-
-import {
-  processUserAlerts,
+  checkAlertsForTicker,
 } from "../../../../lib/services/alert-trigger.service";
 
-export async function POST() {
+export async function POST(
+  request: Request
+) {
   try {
+    /*
+     * ==========================================
+     * AUTHENTICATION
+     * ==========================================
+     */
+
     const supabase =
       await createClient();
 
-    /*
-     * Never accept userId from the
-     * request body.
-     *
-     * The authenticated user comes
-     * directly from Supabase.
-     */
-
     const {
-      data: {
-        user,
-      },
+      data: { user },
       error: authError,
     } =
       await supabase.auth.getUser();
@@ -38,8 +35,7 @@ export async function POST() {
     ) {
       return NextResponse.json(
         {
-          error:
-            "Authentication required",
+          error: "Unauthorized",
         },
         {
           status: 401,
@@ -47,15 +43,161 @@ export async function POST() {
       );
     }
 
-    const result =
-      await processUserAlerts(
-        user.id
+    /*
+     * ==========================================
+     * PARSE REQUEST
+     * ==========================================
+     */
+
+    let body: unknown;
+
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid JSON body",
+        },
+        {
+          status: 400,
+        }
       );
+    }
+
+    if (
+      typeof body !== "object" ||
+      body === null
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid request body",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const {
+      ticker,
+    } = body as {
+      ticker?: unknown;
+    };
+
+    if (
+      typeof ticker !== "string" ||
+      !ticker.trim()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Ticker is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const normalizedTicker =
+      ticker
+        .trim()
+        .toUpperCase();
+
+    /*
+     * ==========================================
+     * GET CURRENT STOCK PRICE
+     * ==========================================
+     *
+     * Reuses the existing stock service.
+     *
+     * No direct Yahoo request here.
+     */
+
+    const stock =
+      await getStockQuote(
+        normalizedTicker
+      );
+
+    if (!stock) {
+      return NextResponse.json(
+        {
+          error:
+            "Unable to fetch current stock data",
+        },
+        {
+          status: 503,
+        }
+      );
+    }
+
+    if (
+      typeof stock.price !==
+        "number" ||
+      !Number.isFinite(
+        stock.price
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Current stock price is unavailable",
+        },
+        {
+          status: 503,
+        }
+      );
+    }
+
+    /*
+     * ==========================================
+     * RUN ALERT ENGINE
+     * ==========================================
+     */
+
+    const result =
+      await checkAlertsForTicker(
+        user.id,
+        {
+          ticker:
+            normalizedTicker,
+
+          price:
+            stock.price,
+
+          changePercent:
+            stock.changePercent ??
+            null,
+        }
+      );
+
+    /*
+     * ==========================================
+     * RESPONSE
+     * ==========================================
+     */
 
     return NextResponse.json(
       {
         success: true,
-        ...result,
+
+        ticker:
+          normalizedTicker,
+
+        currentPrice:
+          stock.price,
+
+        changePercent:
+          stock.changePercent ??
+          null,
+
+        checked:
+          result.checked,
+
+        triggered:
+          result.triggered,
       },
       {
         status: 200,
@@ -63,17 +205,16 @@ export async function POST() {
     );
   } catch (error) {
     console.error(
-      "Alert processing error:",
+      "POST /api/alerts/check error:",
       error
     );
 
     return NextResponse.json(
       {
-        success: false,
         error:
           error instanceof Error
             ? error.message
-            : "Failed to process alerts",
+            : "Failed to check alerts",
       },
       {
         status: 500,

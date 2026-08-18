@@ -13,6 +13,10 @@ export interface AlertRepository {
     alertId: string
   ): Promise<Alert | null>;
 
+  getActiveAlertsByTicker(
+    ticker: string
+  ): Promise<Alert[]>;
+
   createAlert(
     userId: string,
     input: CreateAlertInput
@@ -30,7 +34,7 @@ export interface AlertRepository {
     userId: string,
     alertId: string,
     currentValue: number
-  ): Promise<Alert>;
+  ): Promise<Alert | null>;
 
   deleteAlert(
     userId: string,

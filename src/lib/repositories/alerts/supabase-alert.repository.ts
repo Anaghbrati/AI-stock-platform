@@ -43,9 +43,7 @@ export class SupabaseAlertRepository
         }
       );
 
-      throw new Error(
-        error.message
-      );
+      throw new Error(error.message);
     }
 
     return (data ?? []) as Alert[];
@@ -81,12 +79,67 @@ export class SupabaseAlertRepository
         }
       );
 
-      throw new Error(
-        error.message
-      );
+      throw new Error(error.message);
     }
 
     return data as Alert | null;
+  }
+
+  // ========================================
+  // GET ACTIVE ALERTS BY TICKER
+  // ========================================
+  //
+  // Used by the Alert Trigger Engine.
+  //
+  // Only loads alerts that:
+  //
+  // 1. Match the ticker
+  // 2. Are active
+  // 3. Have not already triggered
+  //
+  // This keeps the trigger query small and fast.
+  //
+  // ========================================
+
+  async getActiveAlertsByTicker(
+    ticker: string
+  ): Promise<Alert[]> {
+    const supabase =
+      await createClient();
+
+    const normalizedTicker =
+      ticker.trim().toUpperCase();
+
+    if (!normalizedTicker) {
+      return [];
+    }
+
+    const { data, error } =
+      await supabase
+        .from("alerts")
+        .select("*")
+        .eq("ticker", normalizedTicker)
+        .eq("is_active", true)
+        .eq("is_triggered", false)
+        .order("created_at", {
+          ascending: true,
+        });
+
+    if (error) {
+      console.error(
+        "Failed to fetch active alerts:",
+        {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        }
+      );
+
+      throw new Error(error.message);
+    }
+
+    return (data ?? []) as Alert[];
   }
 
   // ========================================
@@ -139,9 +192,7 @@ export class SupabaseAlertRepository
         }
       );
 
-      throw new Error(
-        error.message
-      );
+      throw new Error(error.message);
     }
 
     return data as Alert;
@@ -222,9 +273,7 @@ export class SupabaseAlertRepository
         }
       );
 
-      throw new Error(
-        error.message
-      );
+      throw new Error(error.message);
     }
 
     return data as Alert;
@@ -234,14 +283,11 @@ export class SupabaseAlertRepository
   // UPDATE TRIGGER STATE
   // ========================================
   //
-  // Used only by the alert trigger engine.
+  // Used by the Alert Trigger Engine.
   //
-  // When an alert condition is satisfied:
-  //
-  // current_value  -> current market value
-  // is_triggered   -> true
-  // is_active      -> false
-  // triggered_at   -> current timestamp
+  // The additional active/triggered filters
+  // prevent the same alert from being triggered
+  // multiple times by concurrent requests.
   //
   // ========================================
 
@@ -279,6 +325,11 @@ export class SupabaseAlertRepository
       })
       .eq("id", alertId)
       .eq("user_id", userId)
+
+      // Prevent duplicate triggering.
+      .eq("is_active", true)
+      .eq("is_triggered", false)
+
       .select("*")
       .single();
 
@@ -293,9 +344,7 @@ export class SupabaseAlertRepository
         }
       );
 
-      throw new Error(
-        error.message
-      );
+      throw new Error(error.message);
     }
 
     return data as Alert;
@@ -330,9 +379,7 @@ export class SupabaseAlertRepository
         }
       );
 
-      throw new Error(
-        error.message
-      );
+      throw new Error(error.message);
     }
   }
 }

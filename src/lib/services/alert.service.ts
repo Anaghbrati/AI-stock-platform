@@ -160,7 +160,7 @@ export async function updateAlertTriggerState(
   userId: string,
   alertId: string,
   currentValue: number
-): Promise<Alert> {
+): Promise<Alert | null> {
   if (!userId) {
     throw new Error(
       "Authenticated user is required"

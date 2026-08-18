@@ -9,161 +9,254 @@ import {
   createChart,
   ColorType,
   CandlestickSeries,
+  type IChartApi,
+  type ISeriesApi,
 } from "lightweight-charts";
 
 import type {
-  HistoricalData,
-} from "./StockChartContainer";
-
+  HistoricalChartData,
+} from "../../types/market-data";
 
 interface StockChartProps {
-  data: HistoricalData[];
+  data:  HistoricalChartData[];
 }
 
+const CHART_HEIGHT = 500;
 
 export default function StockChart({
   data,
 }: StockChartProps) {
-
   const containerRef =
-    useRef<HTMLDivElement | null>(
-      null
-    );
+    useRef<HTMLDivElement | null>(null);
 
+  const chartRef =
+    useRef<IChartApi | null>(null);
+
+  const seriesRef =
+    useRef<
+      ISeriesApi<"Candlestick"> | null
+    >(null);
+
+  // =====================================================
+  // CREATE CHART ONCE
+  // =====================================================
 
   useEffect(() => {
-
-    if (
-      !containerRef.current ||
-      data.length === 0
-    ) {
+    if (!containerRef.current) {
       return;
     }
 
+    const container =
+      containerRef.current;
 
-    const chart =
-      createChart(
-        containerRef.current,
-        {
-          layout: {
-            background: {
-              type:
-                ColorType.Solid,
-              color:
-                "#0f172a",
-            },
-            textColor:
-              "#94a3b8",
+    const chart = createChart(
+      container,
+      {
+        layout: {
+          background: {
+            type: ColorType.Solid,
+            color: "#0f172a",
           },
 
-          grid: {
-            vertLines: {
-              color:
-                "#1e293b",
-            },
+          textColor: "#94a3b8",
+        },
 
-            horzLines: {
-              color:
-                "#1e293b",
-            },
+        grid: {
+          vertLines: {
+            color: "#1e293b",
           },
 
-          width:
-            containerRef.current
-              .clientWidth,
-
-          height: 500,
-
-          timeScale: {
-            timeVisible: true,
-            secondsVisible: false,
+          horzLines: {
+            color: "#1e293b",
           },
-        }
-      );
+        },
 
+        width:
+          container.clientWidth,
+
+        height: CHART_HEIGHT,
+
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+        },
+
+        rightPriceScale: {
+          borderVisible: false,
+        },
+
+        leftPriceScale: {
+          borderVisible: false,
+        },
+
+        crosshair: {
+          vertLine: {
+            labelVisible: true,
+          },
+
+          horzLine: {
+            labelVisible: true,
+          },
+        },
+      }
+    );
 
     const candlestickSeries =
       chart.addSeries(
         CandlestickSeries,
         {
-          upColor:
-            "#22c55e",
+          upColor: "#22c55e",
 
-          downColor:
-            "#ef4444",
+          downColor: "#ef4444",
 
-          borderVisible:
-            false,
+          borderVisible: false,
 
-          wickUpColor:
-            "#22c55e",
+          wickUpColor: "#22c55e",
 
-          wickDownColor:
-            "#ef4444",
+          wickDownColor: "#ef4444",
         }
       );
 
+    chartRef.current =
+      chart;
 
-    candlestickSeries.setData(
-      data.map((item) => ({
-        time: item.time as any,
+    seriesRef.current =
+      candlestickSeries;
 
-        open: item.open,
+    // ===================================================
+    // RESPONSIVE RESIZE
+    // ===================================================
 
-        high: item.high,
+    let resizeFrame: number | null =
+      null;
 
-        low: item.low,
+    const handleResize = () => {
+      if (
+        resizeFrame !== null
+      ) {
+        cancelAnimationFrame(
+          resizeFrame
+        );
+      }
 
-        close: item.close,
-      }))
-    );
-
-
-    chart.timeScale()
-      .fitContent();
-
-
-    const handleResize =
-      () => {
-
-        if (
-          containerRef.current
-        ) {
+      resizeFrame =
+        requestAnimationFrame(() => {
+          if (
+            !containerRef.current
+          ) {
+            return;
+          }
 
           chart.applyOptions({
             width:
               containerRef.current
                 .clientWidth,
           });
-        }
-      };
 
+          resizeFrame = null;
+        });
+    };
 
     window.addEventListener(
       "resize",
-      handleResize
+      handleResize,
+      { passive: true }
     );
 
-
     return () => {
-
       window.removeEventListener(
         "resize",
         handleResize
       );
 
-      chart.remove();
-    };
+      if (
+        resizeFrame !== null
+      ) {
+        cancelAnimationFrame(
+          resizeFrame
+        );
+      }
 
+      chart.remove();
+
+      chartRef.current = null;
+
+      seriesRef.current = null;
+    };
+  }, []);
+
+  // =====================================================
+  // UPDATE DATA ONLY
+  // =====================================================
+
+  useEffect(() => {
+    if (
+      !seriesRef.current ||
+      data.length === 0
+    ) {
+      return;
+    }
+
+    const chartData =
+      data
+        .map((item) => ({
+          time:
+            item.time as any,
+
+          open:
+            item.open,
+
+          high:
+            item.high,
+
+          low:
+            item.low,
+
+          close:
+            item.close,
+        }))
+        .filter(
+          (item) =>
+            Number.isFinite(
+              item.open
+            ) &&
+            Number.isFinite(
+              item.high
+            ) &&
+            Number.isFinite(
+              item.low
+            ) &&
+            Number.isFinite(
+              item.close
+            )
+        );
+
+    if (
+      chartData.length === 0
+    ) {
+      return;
+    }
+
+    seriesRef.current.setData(
+      chartData
+    );
+
+    chartRef.current
+      ?.timeScale()
+      .fitContent();
   }, [data]);
 
+  // =====================================================
+  // RESERVED CHART SPACE
+  // =====================================================
 
   return (
     <div
       ref={containerRef}
       className="w-full"
       style={{
-        height: 500,
+        height: CHART_HEIGHT,
+        minHeight: CHART_HEIGHT,
       }}
     />
   );

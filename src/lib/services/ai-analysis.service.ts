@@ -5,9 +5,14 @@ import {
   AIAnalysisResult,
 } from "../providers/ai";
 
+/* =========================================================
+   AI PROVIDER
+========================================================= */
+
 function getAIProvider(): AIProvider {
   const provider =
-    process.env.AI_PROVIDER || "groq";
+    process.env.AI_PROVIDER ||
+    "groq";
 
   switch (provider) {
     case "groq":
@@ -19,6 +24,10 @@ function getAIProvider(): AIProvider {
       );
   }
 }
+
+/* =========================================================
+   FALLBACK
+========================================================= */
 
 function createFallbackAnalysis(
   input: AIAnalysisInput
@@ -34,44 +43,28 @@ function createFallbackAnalysis(
       "Risk assessment requires additional market and fundamental data.",
 
     keyPoints:
-      input.reasons,
+      input.reasons ?? [],
   };
 }
+
+/* =========================================================
+   GENERATE AI ANALYSIS
+========================================================= */
 
 export async function generateAIAnalysis(
   input: AIAnalysisInput
 ): Promise<AIAnalysisResult> {
   try {
-    console.log(
-      "AI_PROVIDER:",
-      process.env.AI_PROVIDER
-    );
-
-    console.log(
-      "GROQ_API_KEY exists:",
-      Boolean(process.env.GROQ_API_KEY)
-    );
-
     const provider =
       getAIProvider();
 
     return await provider.generateAnalysis(
       input
     );
-
   } catch (error) {
     console.error(
-      "=============================="
-    );
-
-    console.error(
-      "AI PROVIDER ERROR:"
-    );
-
-    console.error(error);
-
-    console.error(
-      "=============================="
+      "AI provider error:",
+      error
     );
 
     return createFallbackAnalysis(

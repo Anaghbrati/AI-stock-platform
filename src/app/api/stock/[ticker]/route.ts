@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 
 import {
@@ -11,12 +10,30 @@ interface RouteContext {
   }>;
 }
 
+// ========================================
+// FORCE DYNAMIC
+// ========================================
+//
+// Stock quotes are live data.
+// Never statically cache this route.
+//
+
+export const dynamic = "force-dynamic";
+
+// ========================================
+// GET STOCK QUOTE
+// ========================================
+
 export async function GET(
   _request: Request,
   { params }: RouteContext
 ) {
   try {
     const { ticker } = await params;
+
+    // ======================================
+    // VALIDATE TICKER
+    // ======================================
 
     if (!ticker) {
       return NextResponse.json(
@@ -30,25 +47,50 @@ export async function GET(
       );
     }
 
+    // ======================================
+    // NORMALIZE TICKER
+    // ======================================
+
     const normalizedTicker =
       decodeURIComponent(ticker)
         .trim()
         .toUpperCase();
 
+    if (!normalizedTicker) {
+      return NextResponse.json(
+        {
+          error: "Ticker is required",
+          stock: null,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
     console.log(
-      "Stock API: fetching",
+      "[Stock API] Fetching quote:",
       normalizedTicker
     );
+
+    // ======================================
+    // FETCH QUOTE
+    // ======================================
 
     const stock =
       await getStockQuote(
         normalizedTicker
       );
 
+    // ======================================
+    // HANDLE UNAVAILABLE DATA
+    // ======================================
+
     if (!stock) {
       return NextResponse.json(
         {
-          error: "Stock data unavailable",
+          error:
+            "Stock data unavailable",
           stock: null,
         },
         {
@@ -57,12 +99,17 @@ export async function GET(
       );
     }
 
+    // ======================================
+    // SUCCESS
+    // ======================================
+
     return NextResponse.json(
       {
         stock,
       },
       {
         status: 200,
+
         headers: {
           "Cache-Control":
             "no-store, no-cache, must-revalidate",
@@ -71,17 +118,8 @@ export async function GET(
     );
   } catch (error) {
     console.error(
-      "================================"
-    );
-
-    console.error(
-      "Stock quote API error:"
-    );
-
-    console.error(error);
-
-    console.error(
-      "================================"
+      "[Stock API] Quote error:",
+      error
     );
 
     return NextResponse.json(
@@ -90,10 +128,12 @@ export async function GET(
           error instanceof Error
             ? error.message
             : "Failed to fetch stock quote",
+
         stock: null,
       },
       {
         status: 500,
+
         headers: {
           "Cache-Control":
             "no-store, no-cache, must-revalidate",

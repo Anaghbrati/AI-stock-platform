@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import {
-  getStockQuote,
   getHistoricalData,
 } from "../../../../lib/services/stock.service";
 
@@ -19,32 +18,88 @@ interface RouteContext {
   }>;
 }
 
+/* =========================================================
+   GET
+========================================================= */
+
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: RouteContext
 ) {
   try {
-    // ========================================
-    // TICKER
-    // ========================================
+    /* =====================================================
+       TICKER
+    ===================================================== */
 
-    const { ticker } = await params;
+    const { ticker } =
+      await params;
 
     const normalizedTicker =
-      ticker.toUpperCase();
+      decodeURIComponent(ticker)
+        .trim()
+        .toUpperCase();
 
-    // ========================================
-    // STOCK QUOTE
-    // ========================================
+    if (!normalizedTicker) {
+      return NextResponse.json(
+        {
+          error:
+            "Ticker is required",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
 
-    const stock =
-      await getStockQuote(
-        normalizedTicker
+    /* =====================================================
+       EXISTING QUOTE DATA
+    ===================================================== */
+
+    const url =
+      new URL(request.url);
+
+    const priceParam =
+      url.searchParams.get(
+        "price"
       );
 
-    // ========================================
-    // HISTORICAL DATA
-    // ========================================
+    const changePercentParam =
+      url.searchParams.get(
+        "changePercent"
+      );
+
+    const parsedPrice =
+      priceParam !== null
+        ? Number(priceParam)
+        : null;
+
+    const parsedChangePercent =
+      changePercentParam !== null
+        ? Number(
+            changePercentParam
+          )
+        : null;
+
+    const price =
+      Number.isFinite(
+        parsedPrice
+      )
+        ? parsedPrice
+        : null;
+
+    const changePercent =
+      Number.isFinite(
+        parsedChangePercent
+      )
+        ? parsedChangePercent
+        : null;
+
+    /* =====================================================
+       HISTORICAL DATA
+       
+       Cache + in-flight deduplication
+       happens inside getHistoricalData().
+    ===================================================== */
 
     const historicalData =
       await getHistoricalData(
@@ -53,27 +108,26 @@ export async function GET(
         "1d"
       );
 
-    // ========================================
-    // TECHNICAL ANALYSIS
-    // ========================================
+    /* =====================================================
+       TECHNICAL ANALYSIS
+    ===================================================== */
 
     const technical =
       calculateTechnicalSignal(
         historicalData
       );
 
-    // ========================================
-    // AI ANALYSIS
-    // ========================================
+    /* =====================================================
+       AI INPUT
+    ===================================================== */
 
     const aiInput = {
-      ticker: normalizedTicker,
+      ticker:
+        normalizedTicker,
 
-      price:
-        stock.price ?? null,
+      price,
 
-      changePercent:
-        stock.changePercent ?? null,
+      changePercent,
 
       signal:
         technical.signal,
@@ -82,59 +136,82 @@ export async function GET(
         technical.score,
 
       rsi:
-        technical.rsi ?? null,
+        technical.rsi,
 
       macd:
-        technical.macd ?? null,
+        technical.macd,
 
       macdSignal:
-        technical.macdSignal ?? null,
+        technical.macdSignal,
 
       macdHistogram:
-        technical.macdHistogram ?? null,
+        technical.macdHistogram,
 
       reasons:
-        technical.reasons ?? [],
+        technical.reasons,
     };
+
+    /* =====================================================
+       AI ANALYSIS
+    ===================================================== */
 
     const ai =
       await generateAIAnalysis(
         aiInput
       );
 
-    // ========================================
-    // FINAL RESPONSE
-    // ========================================
+    /* =====================================================
+       RESPONSE
+    ===================================================== */
 
-    return NextResponse.json({
-      ticker: normalizedTicker,
+    return NextResponse.json(
+      {
+        ticker:
+          normalizedTicker,
 
-      technical: {
-        signal:
-          technical.signal,
+        technical: {
+          signal:
+            technical.signal,
 
-        score:
-          technical.score,
+          score:
+            technical.score,
 
-        reasons:
-          technical.reasons,
+          reasons:
+            technical.reasons,
 
-        rsi:
-          technical.rsi ?? null,
+          rsi:
+            technical.rsi,
 
-        macd:
-          technical.macd ?? null,
+          macd:
+            technical.macd,
 
-        macdSignal:
-          technical.macdSignal ?? null,
+          macdSignal:
+            technical.macdSignal,
 
-        macdHistogram:
-          technical.macdHistogram ?? null,
+          macdHistogram:
+            technical.macdHistogram,
+        },
+
+        ai,
       },
+      {
+        status: 200,
 
-      ai,
-    });
+        headers: {
+          /*
+           * We deliberately don't cache
+           * the complete analysis response
+           * because AI output may change.
+           *
+           * Historical data itself is cached
+           * inside stock.service.ts.
+           */
 
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
   } catch (error) {
     console.error(
       "Analysis API error:",
@@ -144,10 +221,17 @@ export async function GET(
     return NextResponse.json(
       {
         error:
-          "Failed to generate stock analysis",
+          error instanceof Error
+            ? error.message
+            : "Failed to generate stock analysis",
       },
       {
         status: 500,
+
+        headers: {
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate",
+        },
       }
     );
   }

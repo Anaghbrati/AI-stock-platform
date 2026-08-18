@@ -1,10 +1,19 @@
 export interface TechnicalSignal {
-  signal: "BULLISH" | "BEARISH" | "NEUTRAL";
+  signal:
+    | "BULLISH"
+    | "BEARISH"
+    | "NEUTRAL";
+
   score: number;
+
   reasons: string[];
+
   rsi: number | null;
+
   macd: number | null;
+
   macdSignal: number | null;
+
   macdHistogram: number | null;
 }
 
@@ -12,63 +21,94 @@ interface PriceData {
   close: number;
 }
 
-/*
- * EMA
- */
+/* =========================================================
+   EMA
+========================================================= */
+
 function calculateEMA(
   values: number[],
   period: number
 ): number | null {
-  if (values.length < period) {
+  if (
+    values.length < period ||
+    period <= 0
+  ) {
     return null;
   }
 
   let sum = 0;
 
-  for (let i = 0; i < period; i++) {
+  for (
+    let i = 0;
+    i < period;
+    i++
+  ) {
     sum += values[i];
   }
 
-  let ema = sum / period;
+  let ema =
+    sum / period;
 
-  const multiplier = 2 / (period + 1);
+  const multiplier =
+    2 / (period + 1);
 
-  for (let i = period; i < values.length; i++) {
+  for (
+    let i = period;
+    i < values.length;
+    i++
+  ) {
     ema =
-      (values[i] - ema) * multiplier +
+      (values[i] - ema) *
+        multiplier +
       ema;
   }
 
-  return ema;
+  return Number.isFinite(ema)
+    ? ema
+    : null;
 }
 
-/*
- * RSI
- */
+/* =========================================================
+   RSI
+========================================================= */
+
 function calculateRSI(
   values: number[],
   period: number = 14
 ): number | null {
-  if (values.length <= period) {
+  if (
+    values.length <= period ||
+    period <= 0
+  ) {
     return null;
   }
 
   let gains = 0;
   let losses = 0;
 
-  for (let i = 1; i <= period; i++) {
+  for (
+    let i = 1;
+    i <= period;
+    i++
+  ) {
     const change =
-      values[i] - values[i - 1];
+      values[i] -
+      values[i - 1];
 
     if (change > 0) {
       gains += change;
     } else {
-      losses += Math.abs(change);
+      losses += Math.abs(
+        change
+      );
     }
   }
 
-  let averageGain = gains / period;
-  let averageLoss = losses / period;
+  let averageGain =
+    gains / period;
+
+  let averageLoss =
+    losses / period;
 
   for (
     let i = period + 1;
@@ -76,21 +116,28 @@ function calculateRSI(
     i++
   ) {
     const change =
-      values[i] - values[i - 1];
+      values[i] -
+      values[i - 1];
 
     const gain =
-      change > 0 ? change : 0;
+      change > 0
+        ? change
+        : 0;
 
     const loss =
-      change < 0 ? Math.abs(change) : 0;
+      change < 0
+        ? Math.abs(change)
+        : 0;
 
     averageGain =
-      (averageGain * (period - 1) +
+      (averageGain *
+        (period - 1) +
         gain) /
       period;
 
     averageLoss =
-      (averageLoss * (period - 1) +
+      (averageLoss *
+        (period - 1) +
         loss) /
       period;
   }
@@ -100,25 +147,30 @@ function calculateRSI(
   }
 
   const relativeStrength =
-    averageGain / averageLoss;
+    averageGain /
+    averageLoss;
 
-  return (
+  const rsi =
     100 -
     100 /
-      (1 + relativeStrength)
-  );
+      (1 + relativeStrength);
+
+  return Number.isFinite(rsi)
+    ? rsi
+    : null;
 }
 
-/*
- * MACD
- *
- * MACD Line = EMA 12 - EMA 26
- * Signal Line = 9-period EMA of MACD Line
- * Histogram = MACD Line - Signal Line
- */
+/* =========================================================
+   MACD
+========================================================= */
+
 function calculateMACD(
   values: number[]
-) {
+): {
+  macd: number | null;
+  signal: number | null;
+  histogram: number | null;
+} {
   if (values.length < 35) {
     return {
       macd: null,
@@ -127,40 +179,62 @@ function calculateMACD(
     };
   }
 
-  const multiplier12 = 2 / (12 + 1);
-  const multiplier26 = 2 / (26 + 1);
+  const multiplier12 =
+    2 / 13;
 
-  /*
-   * Initial EMA 12
-   */
+  const multiplier26 =
+    2 / 27;
+
+  /* =======================================================
+     INITIAL EMA 12
+  ======================================================= */
 
   let ema12 = 0;
 
-  for (let i = 0; i < 12; i++) {
+  for (
+    let i = 0;
+    i < 12;
+    i++
+  ) {
     ema12 += values[i];
   }
 
-  ema12 = ema12 / 12;
+  ema12 /= 12;
 
-  /*
-   * Initial EMA 26
-   */
+  /* =======================================================
+     INITIAL EMA 26
+  ======================================================= */
 
   let ema26 = 0;
 
-  for (let i = 0; i < 26; i++) {
+  for (
+    let i = 0;
+    i < 26;
+    i++
+  ) {
     ema26 += values[i];
   }
 
-  ema26 = ema26 / 26;
+  ema26 /= 26;
 
-  /*
-   * Calculate MACD values
-   */
+  /* =======================================================
+     MACD VALUES
+  ======================================================= */
 
   const macdValues: number[] = [];
 
-  for (let i = 26; i < values.length; i++) {
+  /*
+   * Start from index 26.
+   *
+   * Both EMA calculations are now
+   * available.
+   */
+
+  for (
+    let i = 26;
+    i < values.length;
+    i++
+  ) {
     ema12 =
       (values[i] - ema12) *
         multiplier12 +
@@ -174,15 +248,16 @@ function calculateMACD(
     const macd =
       ema12 - ema26;
 
-    macdValues.push(macd);
+    if (
+      Number.isFinite(macd)
+    ) {
+      macdValues.push(macd);
+    }
   }
 
-  /*
-   * Need at least 9 MACD values
-   * for the signal line.
-   */
-
-  if (macdValues.length < 9) {
+  if (
+    macdValues.length < 9
+  ) {
     return {
       macd: null,
       signal: null,
@@ -190,25 +265,25 @@ function calculateMACD(
     };
   }
 
-  /*
-   * Initial Signal Line
-   *
-   * 9-period EMA of MACD
-   */
+  /* =======================================================
+     SIGNAL LINE
+  ======================================================= */
 
   let signal = 0;
 
-  for (let i = 0; i < 9; i++) {
-    signal += macdValues[i];
+  for (
+    let i = 0;
+    i < 9;
+    i++
+  ) {
+    signal +=
+      macdValues[i];
   }
 
-  signal = signal / 9;
+  signal /= 9;
 
-  const signalMultiplier = 2 / (9 + 1);
-
-  /*
-   * Continue Signal EMA
-   */
+  const signalMultiplier =
+    2 / 10;
 
   for (
     let i = 9;
@@ -216,7 +291,8 @@ function calculateMACD(
     i++
   ) {
     signal =
-      (macdValues[i] - signal) *
+      (macdValues[i] -
+        signal) *
         signalMultiplier +
       signal;
   }
@@ -230,19 +306,36 @@ function calculateMACD(
     macd - signal;
 
   return {
-    macd,
-    signal,
-    histogram,
+    macd: Number.isFinite(macd)
+      ? macd
+      : null,
+
+    signal: Number.isFinite(
+      signal
+    )
+      ? signal
+      : null,
+
+    histogram:
+      Number.isFinite(
+        histogram
+      )
+        ? histogram
+        : null,
   };
 }
 
-/*
- * Technical Analysis
- */
+/* =========================================================
+   TECHNICAL ANALYSIS
+========================================================= */
+
 export function calculateTechnicalSignal(
   data: PriceData[]
 ): TechnicalSignal {
-  if (data.length < 50) {
+  if (
+    !Array.isArray(data) ||
+    data.length < 50
+  ) {
     return {
       signal: "NEUTRAL",
       score: 0,
@@ -256,49 +349,96 @@ export function calculateTechnicalSignal(
     };
   }
 
-  const closes = data.map(
-    (item) => Number(item.close)
-  );
+  /* =======================================================
+     CLEAN CLOSE VALUES
+  ======================================================= */
+
+  const closes =
+    data
+      .map((item) =>
+        Number(item.close)
+      )
+      .filter((value) =>
+        Number.isFinite(value)
+      );
+
+  if (
+    closes.length < 50
+  ) {
+    return {
+      signal: "NEUTRAL",
+      score: 0,
+      reasons: [
+        "Not enough valid historical price data",
+      ],
+      rsi: null,
+      macd: null,
+      macdSignal: null,
+      macdHistogram: null,
+    };
+  }
 
   const currentPrice =
-    closes[closes.length - 1];
+    closes[
+      closes.length - 1
+    ];
 
-  /*
-   * EMA
-   */
+  /* =======================================================
+     EMA
+  ======================================================= */
 
   const ema20 =
-    calculateEMA(closes, 20);
+    calculateEMA(
+      closes,
+      20
+    );
 
   const ema50 =
-    calculateEMA(closes, 50);
+    calculateEMA(
+      closes,
+      50
+    );
 
-  /*
-   * RSI
-   */
+  /* =======================================================
+     RSI
+  ======================================================= */
 
   const rsi =
-    calculateRSI(closes, 14);
+    calculateRSI(
+      closes,
+      14
+    );
 
-  /*
-   * MACD
-   */
+  /* =======================================================
+     MACD
+  ======================================================= */
 
   const macdData =
-    calculateMACD(closes);
+    calculateMACD(
+      closes
+    );
 
-  const macd = macdData.macd;
-  const macdSignal = macdData.signal;
+  const macd =
+    macdData.macd;
+
+  const macdSignal =
+    macdData.signal;
+
   const macdHistogram =
     macdData.histogram;
 
+  /* =======================================================
+     SCORE
+  ======================================================= */
+
   let score = 0;
 
-  const reasons: string[] = [];
+  const reasons: string[] =
+    [];
 
-  /*
-   * EMA 20 vs EMA 50
-   */
+  /* =======================================================
+     EMA 20 VS EMA 50
+  ======================================================= */
 
   if (
     ema20 !== null &&
@@ -319,12 +459,17 @@ export function calculateTechnicalSignal(
     }
   }
 
-  /*
-   * Price vs EMA 20
-   */
+  /* =======================================================
+     PRICE VS EMA 20
+  ======================================================= */
 
-  if (ema20 !== null) {
-    if (currentPrice > ema20) {
+  if (
+    ema20 !== null
+  ) {
+    if (
+      currentPrice >
+      ema20
+    ) {
       score += 1;
 
       reasons.push(
@@ -339,12 +484,17 @@ export function calculateTechnicalSignal(
     }
   }
 
-  /*
-   * Price vs EMA 50
-   */
+  /* =======================================================
+     PRICE VS EMA 50
+  ======================================================= */
 
-  if (ema50 !== null) {
-    if (currentPrice > ema50) {
+  if (
+    ema50 !== null
+  ) {
+    if (
+      currentPrice >
+      ema50
+    ) {
       score += 1;
 
       reasons.push(
@@ -359,11 +509,13 @@ export function calculateTechnicalSignal(
     }
   }
 
-  /*
-   * RSI
-   */
+  /* =======================================================
+     RSI
+  ======================================================= */
 
-  if (rsi !== null) {
+  if (
+    rsi !== null
+  ) {
     if (rsi < 30) {
       score += 1;
 
@@ -372,7 +524,9 @@ export function calculateTechnicalSignal(
           2
         )} — potentially oversold`
       );
-    } else if (rsi > 70) {
+    } else if (
+      rsi > 70
+    ) {
       score -= 1;
 
       reasons.push(
@@ -389,21 +543,27 @@ export function calculateTechnicalSignal(
     }
   }
 
-  /*
-   * MACD
-   */
+  /* =======================================================
+     MACD
+  ======================================================= */
 
   if (
     macd !== null &&
     macdSignal !== null
   ) {
-    if (macd > macdSignal) {
+    if (
+      macd >
+      macdSignal
+    ) {
       score += 1;
 
       reasons.push(
         "MACD is above its signal"
       );
-    } else if (macd < macdSignal) {
+    } else if (
+      macd <
+      macdSignal
+    ) {
       score -= 1;
 
       reasons.push(
@@ -412,25 +572,31 @@ export function calculateTechnicalSignal(
     }
   }
 
-  /*
-   * MACD Histogram
-   */
+  /* =======================================================
+     MACD HISTOGRAM
+  ======================================================= */
 
-  if (macdHistogram !== null) {
-    if (macdHistogram > 0) {
+  if (
+    macdHistogram !== null
+  ) {
+    if (
+      macdHistogram > 0
+    ) {
       reasons.push(
         "MACD histogram is positive"
       );
-    } else if (macdHistogram < 0) {
+    } else if (
+      macdHistogram < 0
+    ) {
       reasons.push(
         "MACD histogram is negative"
       );
     }
   }
 
-  /*
-   * Final Signal
-   */
+  /* =======================================================
+     FINAL SIGNAL
+  ======================================================= */
 
   let signal:
     | "BULLISH"
@@ -439,7 +605,9 @@ export function calculateTechnicalSignal(
 
   if (score >= 3) {
     signal = "BULLISH";
-  } else if (score <= -3) {
+  } else if (
+    score <= -3
+  ) {
     signal = "BEARISH";
   } else {
     signal = "NEUTRAL";

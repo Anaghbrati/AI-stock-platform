@@ -8,6 +8,8 @@ export interface AlertRepository {
     userId: string
   ): Promise<Alert[]>;
 
+  getActiveAlerts(): Promise<Alert[]>;
+
   getAlert(
     userId: string,
     alertId: string

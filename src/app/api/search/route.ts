@@ -1,28 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { searchStocks } from "../../../lib/services/search.service";
 
 export async function GET(request: NextRequest) {
+  const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+
+  if (query.length < 2) {
+    return NextResponse.json({
+      success: true,
+      results: [],
+    });
+  }
+
   try {
-    const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-
-    if (!query) {
-      return NextResponse.json({
-        success: true,
-        results: [],
-      });
-    }
-
-    if (query.length > 50) {
-      return NextResponse.json(
-        {
-          success: false,
-          results: [],
-          error: "Search query is too long",
-        },
-        { status: 400 },
-      );
-    }
-
     const results = await searchStocks(query);
 
     return NextResponse.json({
@@ -36,9 +26,11 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         results: [],
-        error: "Unable to search stocks",
+        error: "Failed to search stocks",
       },
-      { status: 500 },
+      {
+        status: 500,
+      }
     );
   }
 }

@@ -67,6 +67,7 @@ def root():
     }
 
 
+
 # ========================================
 # HEALTH
 # ========================================
@@ -77,6 +78,46 @@ def health():
         "status": "healthy",
     }
 
+# ========================================
+# STOCK SEARCH
+# ========================================
+
+@app.get("/api/search")
+def search_stocks(q: str = ""):
+    normalized_query = q.strip()
+
+    if not normalized_query:
+        return []
+
+    if len(normalized_query) < 1:
+        return []
+
+    try:
+        return yahoo_service.search_stocks(
+            normalized_query
+        )
+
+    except ValueError as error:
+        print(
+            f"Search validation error "
+            f"for '{normalized_query}': {error}"
+        )
+
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        )
+
+    except Exception as error:
+        print(
+            f"Search service error "
+            f"for '{normalized_query}': {error}"
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to search stocks",
+        )
 
 # ========================================
 # STOCK QUOTE

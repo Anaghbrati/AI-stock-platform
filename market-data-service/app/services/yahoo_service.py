@@ -1,16 +1,100 @@
+
 import math
+from typing import Any
 
 import yfinance as yf
 
 
 class YahooFinanceService:
+    """
+    Service layer for Yahoo Finance market data.
 
-    # ========================================
-    # HELPERS
-    # ========================================
+    Security principles:
+    - Never trust incoming ticker strings blindly.
+    - Normalize and validate ticker symbols.
+    - Never expose Yahoo/internal exceptions directly to clients.
+    - Treat missing/invalid market data as unavailable.
+    - Keep provider-specific logic inside this service.
+    """
+
+    # ---------------------------------------------------------
+    # CONFIGURATION
+    # ---------------------------------------------------------
+
+    MAX_TICKER_LENGTH = 30
+    MAX_SEARCH_LENGTH = 100
+
+    # ---------------------------------------------------------
+    # VALIDATION HELPERS
+    # ---------------------------------------------------------
 
     @staticmethod
-    def safe_float(value):
+    def normalize_ticker(ticker: str) -> str:
+        """
+        Normalize and validate a Yahoo Finance ticker.
+
+        Examples:
+            tata motors -> TATA
+            TATAMOTORS.NS -> TATAMOTORS.NS
+            ^NSEI -> ^NSEI
+        """
+        if not isinstance(ticker, str):
+            raise ValueError("Invalid ticker")
+
+        normalized = ticker.strip().upper()
+
+        if not normalized:
+            raise ValueError("Ticker is required")
+
+        if len(normalized) > YahooFinanceService.MAX_TICKER_LENGTH:
+            raise ValueError("Invalid ticker")
+
+        # Allow:
+        # A-Z
+        # 0-9
+        # .
+        # -
+        # ^
+        #
+        # This covers normal Yahoo symbols such as:
+        # RELIANCE.NS
+        # TCS.NS
+        # ^NSEI
+        # BRITANNIA.NS
+        allowed = set(
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "0123456789"
+            ".-^"
+        )
+
+        if any(character not in allowed for character in normalized):
+            raise ValueError("Invalid ticker")
+
+        return normalized
+
+    @staticmethod
+    def normalize_search_query(query: str) -> str:
+        """
+        Normalize and validate search input.
+        """
+        if not isinstance(query, str):
+            return ""
+
+        normalized = query.strip()
+
+        if len(normalized) > YahooFinanceService.MAX_SEARCH_LENGTH:
+            normalized = normalized[
+                : YahooFinanceService.MAX_SEARCH_LENGTH
+            ]
+
+        return normalized
+
+    # ---------------------------------------------------------
+    # NUMBER HELPERS
+    # ---------------------------------------------------------
+
+    @staticmethod
+    def safe_float(value: Any) -> float | None:
         """
         Safely convert a value to float.
 
@@ -20,7 +104,6 @@ class YahooFinanceService:
         - NaN
         - infinity
         """
-
         if value is None:
             return None
 
@@ -36,11 +119,10 @@ class YahooFinanceService:
             return None
 
     @staticmethod
-    def first_valid(*values):
+    def first_valid(*values: Any) -> float | None:
         """
-        Return the first usable numeric value.
+        Return the first valid numeric value.
         """
-
         for value in values:
             number = YahooFinanceService.safe_float(value)
 
@@ -49,29 +131,24 @@ class YahooFinanceService:
 
         return None
 
+    # ---------------------------------------------------------
+    # SYMBOL HELPERS
+    # ---------------------------------------------------------
+
     @staticmethod
     def is_index(ticker: str) -> bool:
         """
-        Yahoo Finance index symbols start with ^.
-
-        Examples:
-        ^NSEI
-        ^BSESN
+        Yahoo Finance indices start with ^.
         """
-
         return ticker.startswith("^")
 
     @staticmethod
     def get_company_name(
         ticker: str,
-        info: dict,
+        info: dict[str, Any],
     ) -> str:
         """
-        Get a human-readable name.
-
-        Yahoo's index metadata is inconsistent, so
-        explicit names are provided for important
-        Indian indices.
+        Get a human-readable company/index name.
         """
 
         index_names = {
@@ -83,19 +160,26 @@ class YahooFinanceService:
             return index_names[ticker]
 
         return (
-            info.get("longName")
-            or info.get("shortName")
-            or info.get("displayName")
+            str(info.get("longName") or "").strip()
+            or str(info.get("shortName") or "").strip()
+            or str(info.get("displayName") or "").strip()
             or ticker
         )
 
-    @staticmethod
-    def get_history_quote(stock):
-        """
-        Fallback quote retrieval using historical data.
+    # ---------------------------------------------------------
+    # HISTORY FALLBACK
+    # ---------------------------------------------------------
 
-        This is particularly useful for Yahoo Finance
-        indices where stock.info may be incomplete.
+    @classmethod
+    def get_history_quote(
+        cls,
+        stock: Any,
+    ) -> tuple[float | None, float | None]:
+        """
+        Retrieve current/previous close from historical data.
+
+        This acts as a fallback when Yahoo's info endpoint
+        doesn't contain usable price fields.
         """
 
         try:
@@ -107,11 +191,16 @@ class YahooFinanceService:
 
         except Exception as error:
             print(
-                f"Yahoo history error: {error}"
+                f"[Yahoo] History request failed: "
+                f"{type(error).__name__}"
             )
+
             return None, None
 
         if history is None or history.empty:
+            return None, None
+
+        if "Close" not in history.columns:
             return None, None
 
         closes = history["Close"].dropna()
@@ -119,52 +208,47 @@ class YahooFinanceService:
         if closes.empty:
             return None, None
 
-        current_price = YahooFinanceService.safe_float(
+        current_price = cls.safe_float(
             closes.iloc[-1]
         )
 
         previous_close = None
 
         if len(closes) >= 2:
-            previous_close = (
-                YahooFinanceService.safe_float(
-                    closes.iloc[-2]
-                )
+            previous_close = cls.safe_float(
+                closes.iloc[-2]
             )
 
         return current_price, previous_close
 
-    # ========================================
-    # VALIDATE QUOTE
-    # ========================================
+    # ---------------------------------------------------------
+    # QUOTE VALIDATION
+    # ---------------------------------------------------------
 
-    @staticmethod
+    @classmethod
     def validate_quote(
+        cls,
         ticker: str,
-        info: dict,
-        price=None,
-    ):
+        info: dict[str, Any],
+        price: float | None = None,
+    ) -> None:
         """
-        Validate that Yahoo Finance returned
-        meaningful data.
+        Validate that Yahoo returned usable quote data.
 
         Normal stocks:
-            require a company name and price.
+            require a valid price.
 
         Indices:
-            only require a valid price because
-            Yahoo metadata for indices is inconsistent.
+            require a valid price.
+
+        Company metadata is allowed to be incomplete because
+        Yahoo sometimes returns incomplete info responses.
         """
 
-        if not info:
-            info = {}
-
-        safe_price = (
-            YahooFinanceService.safe_float(price)
-        )
+        safe_price = cls.safe_float(price)
 
         if safe_price is None:
-            safe_price = YahooFinanceService.first_valid(
+            safe_price = cls.first_valid(
                 info.get("currentPrice"),
                 info.get("regularMarketPrice"),
                 info.get("previousClose"),
@@ -172,85 +256,67 @@ class YahooFinanceService:
 
         if safe_price is None:
             raise ValueError(
-                f"Stock not found: {ticker}"
+                f"No quote data available for {ticker}"
             )
 
-        if YahooFinanceService.is_index(ticker):
-            return True
-
-        company_name = (
-            info.get("longName")
-            or info.get("shortName")
-            or info.get("displayName")
-        )
-
-        if not company_name:
-            raise ValueError(
-                f"Stock not found: {ticker}"
-            )
-
-        return True
-
-    # ========================================
+    # ---------------------------------------------------------
     # STOCK QUOTE
-    # ========================================
+    # ---------------------------------------------------------
 
-    def get_quote(self, ticker: str):
+    def get_quote(
+        self,
+        ticker: str,
+    ) -> dict[str, Any]:
+        """
+        Fetch normalized quote data for a ticker.
+        """
 
-        ticker = ticker.strip().upper()
-
-        if not ticker:
-            raise ValueError(
-                "Ticker is required"
-            )
+        ticker = self.normalize_ticker(ticker)
 
         print(
-            f"Yahoo Finance: fetching quote for {ticker}"
+            f"[Yahoo] Fetching quote for {ticker}"
         )
 
-        # --------------------------------
+        # -----------------------------------------------------
         # CREATE YAHOO TICKER
-        # --------------------------------
+        # -----------------------------------------------------
 
         try:
             stock = yf.Ticker(ticker)
 
         except Exception as error:
-
             print(
-                f"Yahoo Finance ticker error for "
-                f"{ticker}: {error}"
+                f"[Yahoo] Failed to create ticker "
+                f"{ticker}: {type(error).__name__}"
             )
 
             raise ValueError(
-                f"Unable to create Yahoo Finance ticker "
-                f"for {ticker}"
+                "Unable to fetch stock data"
             ) from error
 
-        # --------------------------------
+        # -----------------------------------------------------
         # FETCH INFO
-        # --------------------------------
+        # -----------------------------------------------------
 
-        info = {}
+        info: dict[str, Any] = {}
 
         try:
-            info = stock.info or {}
+            raw_info = stock.info
+
+            if isinstance(raw_info, dict):
+                info = raw_info
 
         except Exception as error:
-
+            # Do not fail immediately.
+            # Historical data may still contain the price.
             print(
-                f"Yahoo Finance info error for "
-                f"{ticker}: {error}"
+                f"[Yahoo] Info request failed for "
+                f"{ticker}: {type(error).__name__}"
             )
 
-            # Don't immediately fail.
-            # history() may still work.
-
-            info = {}
-
-        # --------------------------------
+        # -----------------------------------------------------
         # PRICE FROM INFO
-        # --------------------------------
+        # -----------------------------------------------------
 
         price = self.first_valid(
             info.get("currentPrice"),
@@ -258,64 +324,59 @@ class YahooFinanceService:
             info.get("previousClose"),
         )
 
-        # --------------------------------
-        # PREVIOUS CLOSE FROM INFO
-        # --------------------------------
+        # -----------------------------------------------------
+        # PREVIOUS CLOSE
+        # -----------------------------------------------------
 
         previous_close = self.first_valid(
-            info.get(
-                "regularMarketPreviousClose"
-            ),
+            info.get("regularMarketPreviousClose"),
             info.get("previousClose"),
         )
 
-        # --------------------------------
+        # -----------------------------------------------------
         # HISTORY FALLBACK
-        # --------------------------------
+        # -----------------------------------------------------
 
         history_price = None
         history_previous_close = None
 
-        if price is None or previous_close is None:
-
+        if (
+            price is None
+            or previous_close is None
+        ):
             (
                 history_price,
                 history_previous_close,
             ) = self.get_history_quote(stock)
 
-        # Prefer actual history price when
-        # info did not provide one.
-
         if price is None:
             price = history_price
 
         if previous_close is None:
-            previous_close = (
-                history_previous_close
-            )
+            previous_close = history_previous_close
 
-        # --------------------------------
+        # -----------------------------------------------------
         # VALIDATE
-        # --------------------------------
+        # -----------------------------------------------------
 
         self.validate_quote(
-            ticker,
-            info,
-            price,
+            ticker=ticker,
+            info=info,
+            price=price,
         )
 
-        # --------------------------------
+        # -----------------------------------------------------
         # COMPANY NAME
-        # --------------------------------
+        # -----------------------------------------------------
 
         company_name = self.get_company_name(
-            ticker,
-            info,
+            ticker=ticker,
+            info=info,
         )
 
-        # --------------------------------
-        # CHANGE
-        # --------------------------------
+        # -----------------------------------------------------
+        # PRICE CHANGE
+        # -----------------------------------------------------
 
         change = None
 
@@ -324,13 +385,11 @@ class YahooFinanceService:
             and previous_close is not None
             and previous_close != 0
         ):
-            change = (
-                price - previous_close
-            )
+            change = price - previous_close
 
-        # --------------------------------
-        # CHANGE %
-        # --------------------------------
+        # -----------------------------------------------------
+        # PRICE CHANGE %
+        # -----------------------------------------------------
 
         change_percent = None
 
@@ -343,9 +402,9 @@ class YahooFinanceService:
                 change / previous_close
             ) * 100
 
-        # --------------------------------
+        # -----------------------------------------------------
         # MARKET DATA
-        # --------------------------------
+        # -----------------------------------------------------
 
         market_cap = self.safe_float(
             info.get("marketCap")
@@ -355,93 +414,175 @@ class YahooFinanceService:
             info.get("volume")
         )
 
-        fifty_two_week_high = (
-            self.safe_float(
-                info.get("fiftyTwoWeekHigh")
-            )
+        fifty_two_week_high = self.safe_float(
+            info.get("fiftyTwoWeekHigh")
         )
 
-        fifty_two_week_low = (
-            self.safe_float(
-                info.get("fiftyTwoWeekLow")
-            )
+        fifty_two_week_low = self.safe_float(
+            info.get("fiftyTwoWeekLow")
         )
 
-        # --------------------------------
+        # -----------------------------------------------------
         # CURRENCY
-        # --------------------------------
+        # -----------------------------------------------------
 
         currency = (
-            info.get("currency")
+            str(info.get("currency") or "").strip()
             or "INR"
         )
 
-        # --------------------------------
-        # RETURN NORMALIZED QUOTE
-        # --------------------------------
+        # -----------------------------------------------------
+        # RESULT
+        # -----------------------------------------------------
 
-        return {
-
+        result = {
             "ticker": ticker,
-
             "companyName": company_name,
-
             "price": price,
-
             "change": change,
-
             "changePercent": change_percent,
-
             "currency": currency,
-
             "marketCap": market_cap,
-
             "volume": volume,
-
-            "fiftyTwoWeekHigh":
-                fifty_two_week_high,
-
-            "fiftyTwoWeekLow":
-                fifty_two_week_low,
+            "fiftyTwoWeekHigh": fifty_two_week_high,
+            "fiftyTwoWeekLow": fifty_two_week_low,
         }
 
-    # ========================================
+        print(
+            f"[Yahoo] Quote success: "
+            f"{ticker} price={price}"
+        )
+
+        return result
+
+    # ---------------------------------------------------------
+    # STOCK SEARCH
+    # ---------------------------------------------------------
+
+    def search_stocks(
+        self,
+        query: str,
+    ) -> list[dict[str, str]]:
+        """
+        Search Yahoo Finance for securities.
+
+        Search is intentionally separate from quote retrieval.
+        """
+
+        normalized_query = self.normalize_search_query(
+            query
+        )
+
+        if len(normalized_query) < 2:
+            return []
+
+        print(
+            f"[Yahoo] Searching for "
+            f"'{normalized_query}'"
+        )
+
+        try:
+            search = yf.Search(
+                normalized_query,
+                max_results=10,
+            )
+
+            quotes = search.quotes or []
+
+        except Exception as error:
+            print(
+                f"[Yahoo] Search failed: "
+                f"{type(error).__name__}"
+            )
+
+            raise ValueError(
+                "Unable to search Yahoo Finance"
+            ) from error
+
+        results: list[dict[str, str]] = []
+
+        for quote in quotes:
+
+            if not isinstance(quote, dict):
+                continue
+
+            symbol = str(
+                quote.get("symbol") or ""
+            ).strip().upper()
+
+            if not symbol:
+                continue
+
+            quote_type = str(
+                quote.get("quoteType") or ""
+            ).upper()
+
+            # Ignore non-security results.
+            if quote_type in {
+                "NEWS",
+                "CURRENCY",
+                "CRYPTOCURRENCY",
+            }:
+                continue
+
+            company_name = (
+                str(
+                    quote.get("longname")
+                    or quote.get("longName")
+                    or quote.get("shortname")
+                    or quote.get("shortName")
+                    or quote.get("displayName")
+                    or symbol
+                ).strip()
+            )
+
+            exchange = str(
+                quote.get("exchange")
+                or quote.get("fullExchangeName")
+                or ""
+            ).strip()
+
+            results.append(
+                {
+                    "ticker": symbol,
+                    "companyName": company_name,
+                    "exchange": exchange,
+                }
+            )
+
+        return results
+
+    # ---------------------------------------------------------
     # FUNDAMENTALS
-    # ========================================
+    # ---------------------------------------------------------
 
     def get_fundamentals(
         self,
         ticker: str,
-    ):
+    ) -> dict[str, Any]:
+        """
+        Fetch fundamental metrics.
+        """
 
-        ticker = ticker.strip().upper()
-
-        if not ticker:
-            raise ValueError(
-                "Ticker is required"
-            )
+        ticker = self.normalize_ticker(ticker)
 
         try:
-
             stock = yf.Ticker(ticker)
-
             info = stock.info or {}
 
         except Exception as error:
-
             print(
-                f"Yahoo Finance fundamentals error "
-                f"for {ticker}: {error}"
+                f"[Yahoo] Fundamentals failed for "
+                f"{ticker}: {type(error).__name__}"
             )
 
             raise ValueError(
-                f"Unable to fetch fundamentals for "
-                f"{ticker}"
+                "Unable to fetch fundamentals"
             ) from error
 
-        # --------------------------------
+        # -----------------------------------------------------
         # ROE
-        # --------------------------------
+        # -----------------------------------------------------
 
         roe = self.safe_float(
             info.get("returnOnEquity")
@@ -450,54 +591,46 @@ class YahooFinanceService:
         if roe is not None:
             roe *= 100
 
-        # --------------------------------
+        # -----------------------------------------------------
         # DIVIDEND YIELD
-        # --------------------------------
+        # -----------------------------------------------------
 
         dividend_yield = self.safe_float(
             info.get("dividendYield")
         )
 
-        # --------------------------------
-        # RETURN
-        # --------------------------------
+        # -----------------------------------------------------
+        # RESULT
+        # -----------------------------------------------------
 
         return {
-
             "ticker": ticker,
 
-            "peRatio":
-                self.safe_float(
-                    info.get("trailingPE")
-                ),
+            "peRatio": self.safe_float(
+                info.get("trailingPE")
+            ),
 
-            "pbRatio":
-                self.safe_float(
-                    info.get("priceToBook")
-                ),
+            "pbRatio": self.safe_float(
+                info.get("priceToBook")
+            ),
 
             "roe": roe,
 
-            "debtToEquity":
-                self.safe_float(
-                    info.get("debtToEquity")
-                ),
+            "debtToEquity": self.safe_float(
+                info.get("debtToEquity")
+            ),
 
-            "dividendYield":
-                dividend_yield,
+            "dividendYield": dividend_yield,
 
-            "freeCashFlow":
-                self.safe_float(
-                    info.get("freeCashflow")
-                ),
+            "freeCashFlow": self.safe_float(
+                info.get("freeCashflow")
+            ),
 
-            "eps":
-                self.safe_float(
-                    info.get("trailingEps")
-                ),
+            "eps": self.safe_float(
+                info.get("trailingEps")
+            ),
 
-            "marketCap":
-                self.safe_float(
-                    info.get("marketCap")
-                ),
+            "marketCap": self.safe_float(
+                info.get("marketCap")
+            ),
         }

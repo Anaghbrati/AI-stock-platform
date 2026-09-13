@@ -1,3 +1,6 @@
+
+import Link from "next/link";
+
 export default function Features() {
   const features = [
     {
@@ -44,7 +47,6 @@ export default function Features() {
       className="border-t border-white/[0.06] px-6 py-28 lg:px-8"
     >
       <div className="mx-auto max-w-7xl">
-
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff4d61]">
           Features
         </p>
@@ -62,14 +64,30 @@ export default function Features() {
         </p>
 
         <div className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-
           {features.map((feature) => (
             <FeatureCard
               key={feature.number}
               {...feature}
             />
           ))}
+        </div>
 
+        {/* Explore All Features CTA */}
+        <div className="mt-14 flex justify-center">
+          <Link
+            href="/features"
+            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-[#ff4d61]/30 bg-[#ff4d61]/[0.06] px-6 py-3.5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-[#ff4d61]/60 hover:bg-[#ff4d61]/[0.12] hover:shadow-[0_0_30px_rgba(255,77,97,0.12)]"
+          >
+            <span className="relative z-10">
+              Explore all features
+            </span>
+
+            <span className="relative z-10 text-[#ff4d61] transition-transform duration-300 group-hover:translate-x-1">
+              →
+            </span>
+
+            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#ff4d61]/10 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+          </Link>
         </div>
       </div>
     </section>
@@ -87,7 +105,6 @@ function FeatureCard({
 }) {
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02] p-7 transition duration-300 hover:-translate-y-1 hover:border-[#ff4d61]/25 hover:bg-white/[0.035]">
-
       <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-[#ff4d61]/5 blur-2xl transition group-hover:bg-[#ff4d61]/10" />
 
       <span className="relative font-mono text-xs text-[#ff4d61]">
@@ -105,7 +122,6 @@ function FeatureCard({
       <div className="relative mt-8 text-xs font-semibold text-slate-600 transition group-hover:text-[#ff6577]">
         Explore →
       </div>
-
     </div>
   );
 }

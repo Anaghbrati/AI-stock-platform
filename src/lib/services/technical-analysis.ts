@@ -72,7 +72,7 @@ function calculateEMA(
    RSI
 ========================================================= */
 
-function calculateRSI(
+export function calculateRSI(
   values: number[],
   period: number = 14
 ): number | null {

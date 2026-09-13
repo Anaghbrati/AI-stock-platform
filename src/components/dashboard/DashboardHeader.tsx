@@ -1,9 +1,9 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 
 import StockSearch from "../stock-search";
-// import ThemeToggle from "../ThemeToggle";
 import { createClient } from "../../lib/supabase/client";
 import ThemeToggle from "../ui/ThemeToggle";
 import ProfileMenu from "../../components/profile/ProfileMenu";
@@ -21,25 +21,41 @@ export default function DashboardHeader({
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadUser() {
       try {
-        const response = await fetch("/api/auth/user", {
-          cache: "no-store",
-        });
+        const supabase = createClient();
 
-        if (!response.ok) {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error) {
+          console.error(
+            "[DashboardHeader] Failed to get user:",
+            error
+          );
           return;
         }
 
-        const data = await response.json();
-
-        setEmail(data.user?.email ?? "");
-      } catch {
-        // User information is optional
+        if (mounted) {
+          setEmail(user?.email ?? "");
+        }
+      } catch (error) {
+        console.error(
+          "[DashboardHeader] Unexpected auth error:",
+          error
+        );
       }
     }
 
-    loadUser();
+    void loadUser();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -55,7 +71,10 @@ export default function DashboardHeader({
     document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
     };
   }, []);
 
@@ -82,7 +101,6 @@ export default function DashboardHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#090b0f]/90 backdrop-blur-xl">
       <div className="flex h-20 items-center gap-4 px-5 sm:px-8 lg:px-10">
-
         {/* MOBILE MENU */}
         <button
           onClick={onMenuClick}
@@ -100,7 +118,6 @@ export default function DashboardHeader({
 
         {/* RIGHT SIDE */}
         <div className="ml-auto flex items-center gap-3">
-
           {/* MARKET STATUS */}
           <div className="hidden items-center gap-2 rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1.5 sm:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -120,8 +137,6 @@ export default function DashboardHeader({
 
             <span className="absolute right-2.5 top-2 h-1.5 w-1.5 rounded-full bg-[#ff4d61]" />
           </button>
-
-          
 
           {/* THEME TOGGLE */}
           <ThemeToggle />
@@ -169,11 +184,9 @@ export default function DashboardHeader({
             {/* PROFILE DROPDOWN */}
             {profileOpen && (
               <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#101318] shadow-2xl shadow-black/40">
-
                 {/* USER INFORMATION */}
                 <div className="border-b border-white/[0.06] p-4">
                   <div className="flex items-center gap-3">
-
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#ff4d61]/10 text-sm font-bold text-[#ff6577]">
                       {initial}
                     </div>
@@ -187,13 +200,11 @@ export default function DashboardHeader({
                         {email || "No email"}
                       </p>
                     </div>
-
                   </div>
                 </div>
 
                 {/* MENU */}
                 <div className="p-2">
-
                   {/* SETTINGS */}
                   <a
                     href="/settings"
@@ -219,12 +230,10 @@ export default function DashboardHeader({
 
                     <span>Logout</span>
                   </button>
-
                 </div>
               </div>
             )}
           </div>
-
         </div>
       </div>
     </header>

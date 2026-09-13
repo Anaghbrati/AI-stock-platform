@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface MarketStock {
   ticker: string;
@@ -28,53 +23,17 @@ interface MarketOverview {
 }
 
 export default function MarketsPageClient() {
-  const [data, setData] =
-    useState<MarketOverview | null>(null);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const [searchQuery, setSearchQuery] =
-    useState("");
-
-  /*
-   * =========================================================
-   * REFS
-   * =========================================================
-   */
-
-  /*
-   * Element used by IntersectionObserver.
-   *
-   * When this element gets close to the viewport,
-   * market data loading begins.
-   */
-  const loadTriggerRef =
-    useRef<HTMLDivElement | null>(null);
-
-  /*
-   * Prevent duplicate API requests.
-   */
-  const requestStartedRef =
-    useRef(false);
-
-  /*
-   * Abort controller for the market request.
-   */
-  const controllerRef =
-    useRef<AbortController | null>(null);
+  const [data, setData] = useState<MarketOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   /*
    * =========================================================
    * RESET SCROLL POSITION
    * =========================================================
-   *
-   * Prevents the browser from restoring the previous
-   * scroll position when entering /markets.
    */
+
   useEffect(() => {
     window.scrollTo({
       top: 0,
@@ -85,178 +44,184 @@ export default function MarketsPageClient() {
 
   /*
    * =========================================================
-   * LAZY LOAD MARKET DATA
+   * LOAD MARKET OVERVIEW
    * =========================================================
    */
 
   useEffect(() => {
-    const trigger =
-      loadTriggerRef.current;
+    let mounted = true;
 
-    if (!trigger) {
-      return;
-    }
+    async function loadMarketOverview() {
+      try {
+        setLoading(true);
+        setError(null);
 
-    const observer =
-      new IntersectionObserver(
-        (entries) => {
-          const entry = entries[0];
+        console.log(
+          "[Markets] Starting /api/market/overview request..."
+        );
 
-          if (
-            !entry?.isIntersecting ||
-            requestStartedRef.current
-          ) {
-            return;
+        const response = await fetch("/api/market/overview", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        console.log(
+          "[Markets] /api/market/overview response:",
+          response.status,
+          response.statusText
+        );
+
+        if (!response.ok) {
+          let message = `Market overview failed: ${response.status}`;
+
+          try {
+            const errorBody = await response.json();
+
+            console.error(
+              "[Markets] API error body:",
+              errorBody
+            );
+
+            if (
+              errorBody &&
+              typeof errorBody.message === "string"
+            ) {
+              message = errorBody.message;
+            } else if (
+              errorBody &&
+              typeof errorBody.error === "string"
+            ) {
+              message = errorBody.error;
+            }
+          } catch {
+            console.error(
+              "[Markets] API returned a non-JSON error response."
+            );
           }
 
-          requestStartedRef.current = true;
-
-          observer.disconnect();
-
-          loadMarketOverview();
-        },
-        {
-          /*
-           * Start loading before the user reaches
-           * the market data section.
-           */
-          rootMargin: "300px 0px",
-          threshold: 0,
+          throw new Error(message);
         }
-      );
 
-    observer.observe(trigger);
+        console.log(
+          "[Markets] Reading market API response..."
+        );
+
+        const result = (await response.json()) as MarketOverview;
+
+        console.log(
+          "[Markets] Market API JSON received:",
+          result
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        if (!result || typeof result !== "object") {
+          throw new Error(
+            "Invalid market data received."
+          );
+        }
+
+        if (!Array.isArray(result.stocks)) {
+          throw new Error(
+            "Market API returned an invalid stocks array."
+          );
+        }
+
+        if (!Array.isArray(result.topGainers)) {
+          throw new Error(
+            "Market API returned an invalid topGainers array."
+          );
+        }
+
+        if (!Array.isArray(result.topLosers)) {
+          throw new Error(
+            "Market API returned an invalid topLosers array."
+          );
+        }
+
+        if (!Array.isArray(result.weekHigh)) {
+          throw new Error(
+            "Market API returned an invalid weekHigh array."
+          );
+        }
+
+        if (!Array.isArray(result.weekLow)) {
+          throw new Error(
+            "Market API returned an invalid weekLow array."
+          );
+        }
+
+        setData(result);
+
+        console.log(
+          "[Markets] Market overview successfully loaded:",
+          {
+            stocks: result.stocks.length,
+            topGainers: result.topGainers.length,
+            topLosers: result.topLosers.length,
+            weekHigh: result.weekHigh.length,
+            weekLow: result.weekLow.length,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "[Markets] Failed to load market overview:",
+          error
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load market data."
+        );
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadMarketOverview();
 
     return () => {
-      observer.disconnect();
-
-      controllerRef.current?.abort();
+      mounted = false;
     };
   }, []);
 
   /*
    * =========================================================
-   * LOAD MARKET OVERVIEW
-   * =========================================================
-   */
-
-  async function loadMarketOverview() {
-    const controller =
-      new AbortController();
-
-    controllerRef.current =
-      controller;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log(
-        "[Markets] Loading market overview..."
-      );
-
-      const response =
-        await fetch(
-          "/api/market/overview",
-          {
-            cache: "no-store",
-            signal:
-              controller.signal,
-          }
-        );
-
-      if (!response.ok) {
-        throw new Error(
-          `Market overview failed: ${response.status}`
-        );
-      }
-
-      const result: MarketOverview =
-        await response.json();
-
-      if (
-        controller.signal.aborted
-      ) {
-        return;
-      }
-
-      setData(result);
-
-      console.log(
-        "[Markets] Market overview loaded"
-      );
-    } catch (error) {
-      /*
-       * AbortError is expected when the user
-       * leaves the page.
-       */
-      if (
-        error instanceof DOMException &&
-        error.name === "AbortError"
-      ) {
-        return;
-      }
-
-      console.error(
-        "[Markets] Failed to load overview:",
-        error
-      );
-
-      if (
-        !controller.signal.aborted
-      ) {
-        setError(
-          "Unable to load market data."
-        );
-      }
-    } finally {
-      if (
-        !controller.signal.aborted
-      ) {
-        setLoading(false);
-      }
-    }
-  }
-
-  /*
-   * =========================================================
    * SEARCH FILTER
    * =========================================================
-   *
-   * Search company name and ticker.
-   *
-   * Example:
-   *
-   * "reliance"
-   * "RELIANCE.NS"
-   * "tcs"
    */
 
-  const filteredStocks =
-    useMemo(() => {
-      if (!data) {
-        return [];
-      }
+  const filteredStocks = useMemo(() => {
+    if (!data) {
+      return [];
+    }
 
-      const query =
-        searchQuery
-          .trim()
-          .toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
 
-      if (!query) {
-        return data.stocks;
-      }
+    if (!query) {
+      return data.stocks;
+    }
 
-      return data.stocks.filter(
-        (stock) =>
-          stock.companyName
-            .toLowerCase()
-            .includes(query) ||
-          stock.ticker
-            .toLowerCase()
-            .includes(query)
+    return data.stocks.filter((stock) => {
+      return (
+        stock.companyName
+          .toLowerCase()
+          .includes(query) ||
+        stock.ticker
+          .toLowerCase()
+          .includes(query)
       );
-    }, [data, searchQuery]);
+    });
+  }, [data, searchQuery]);
 
   /*
    * =========================================================
@@ -268,12 +233,9 @@ export default function MarketsPageClient() {
     <main className="min-h-screen bg-[#080b0f] px-6 py-8 text-white">
       <div className="mx-auto max-w-7xl">
 
-        {/* ===================================================
-            HEADER
-        =================================================== */}
+        {/* HEADER */}
 
         <section className="flex min-h-[55vh] flex-col justify-between gap-8 pb-12">
-
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ff6577]">
               Indian Market
@@ -284,13 +246,10 @@ export default function MarketsPageClient() {
             </h1>
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
-              Live market overview across the
-              Indian stock universe.
+              Live market overview across the Indian stock universe.
             </p>
 
-            {/* =================================================
-                SEARCH
-            ================================================= */}
+            {/* SEARCH */}
 
             <div className="mt-8 max-w-2xl">
               <label
@@ -301,8 +260,6 @@ export default function MarketsPageClient() {
               </label>
 
               <div className="relative">
-                {/* SEARCH ICON */}
-
                 <svg
                   className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-600"
                   viewBox="0 0 24 24"
@@ -313,12 +270,7 @@ export default function MarketsPageClient() {
                   strokeLinejoin="round"
                   aria-hidden="true"
                 >
-                  <circle
-                    cx="11"
-                    cy="11"
-                    r="7"
-                  />
-
+                  <circle cx="11" cy="11" r="7" />
                   <path d="m20 20-3.5-3.5" />
                 </svg>
 
@@ -327,9 +279,7 @@ export default function MarketsPageClient() {
                   type="text"
                   value={searchQuery}
                   onChange={(event) =>
-                    setSearchQuery(
-                      event.target.value
-                    )
+                    setSearchQuery(event.target.value)
                   }
                   placeholder="Search by company name or ticker..."
                   className="h-12 w-full rounded-xl border border-white/[0.08] bg-[#0c0f13] pl-12 pr-12 text-sm text-white outline-none transition placeholder:text-slate-700 focus:border-white/[0.16] focus:bg-[#0e1217]"
@@ -337,14 +287,10 @@ export default function MarketsPageClient() {
                   spellCheck={false}
                 />
 
-                {/* CLEAR BUTTON */}
-
                 {searchQuery && (
                   <button
                     type="button"
-                    onClick={() =>
-                      setSearchQuery("")
-                    }
+                    onClick={() => setSearchQuery("")}
                     className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-600 transition hover:bg-white/[0.05] hover:text-white"
                     aria-label="Clear stock search"
                   >
@@ -363,8 +309,6 @@ export default function MarketsPageClient() {
                 )}
               </div>
 
-              {/* SEARCH STATUS */}
-
               {data && searchQuery && (
                 <p className="mt-2 text-xs text-slate-600">
                   {filteredStocks.length}{" "}
@@ -379,10 +323,22 @@ export default function MarketsPageClient() {
             {/* STATUS */}
 
             <div className="mt-6 flex items-center gap-3">
-              <div className="h-2 w-2 rounded-full bg-emerald-400" />
+              <div
+                className={`h-2 w-2 rounded-full ${
+                  loading
+                    ? "animate-pulse bg-yellow-400"
+                    : error
+                      ? "bg-red-400"
+                      : "bg-emerald-400"
+                }`}
+              />
 
               <span className="text-xs text-slate-600">
-                Market data loads as you scroll
+                {loading
+                  ? "Loading market data..."
+                  : error
+                    ? "Market data unavailable"
+                    : "Market data loaded"}
               </span>
             </div>
           </div>
@@ -397,27 +353,11 @@ export default function MarketsPageClient() {
           )}
         </section>
 
-        {/* ===================================================
-            LAZY LOAD TRIGGER
-        =================================================== */}
+        {/* LOADING */}
 
-        <div
-          ref={loadTriggerRef}
-          className="h-px w-full"
-          aria-hidden="true"
-        />
+        {loading && !data && <MarketLoadingSkeleton />}
 
-        {/* ===================================================
-            LOADING
-        =================================================== */}
-
-        {loading && !data && (
-          <MarketLoadingSkeleton />
-        )}
-
-        {/* ===================================================
-            ERROR
-        =================================================== */}
+        {/* ERROR */}
 
         {error && !data && (
           <section className="mt-8">
@@ -427,84 +367,61 @@ export default function MarketsPageClient() {
               </p>
 
               <p className="mt-2 text-xs text-slate-600">
-                Please refresh the page and try
-                again.
+                Check the browser console and terminal for
+                the underlying API error.
               </p>
             </div>
           </section>
         )}
 
-        {/* ===================================================
-            MARKET DATA
-        =================================================== */}
+        {/* MARKET DATA */}
 
         {data && (
           <>
-            {/* =================================================
-                MARKET SUMMARY
-            ================================================= */}
+            {/* MARKET SUMMARY */}
 
             <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <MarketCard
                 title="Stocks Tracked"
-                value={
-                  data.stocks.length
-                }
+                value={data.stocks.length}
               />
 
               <MarketCard
                 title="Top Gainers"
-                value={
-                  data.topGainers.length
-                }
+                value={data.topGainers.length}
               />
 
               <MarketCard
                 title="Top Losers"
-                value={
-                  data.topLosers.length
-                }
+                value={data.topLosers.length}
               />
 
               <MarketCard
                 title="Near 52W High"
-                value={
-                  data.weekHigh.length
-                }
+                value={data.weekHigh.length}
               />
             </section>
 
-            {/* =================================================
-                MOVERS
-            ================================================= */}
+            {/* MOVERS */}
 
             <section className="mt-8 grid gap-6 lg:grid-cols-2">
               <StockList
                 title="Top Gainers"
-                stocks={
-                  data.topGainers
-                }
+                stocks={data.topGainers}
                 positive
               />
 
               <StockList
                 title="Top Losers"
-                stocks={
-                  data.topLosers
-                }
+                stocks={data.topLosers}
                 positive={false}
               />
             </section>
 
-            {/* =================================================
-                FULL MARKET
-            ================================================= */}
+            {/* FULL MARKET */}
 
             <section className="mt-8">
               <div className="rounded-2xl border border-white/[0.06] bg-[#0c0f13]">
-
-                {/* HEADER */}
-
                 <div className="border-b border-white/[0.06] px-5 py-4">
                   <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                     <div>
@@ -533,25 +450,15 @@ export default function MarketsPageClient() {
                   </div>
                 </div>
 
-                {/* STOCKS */}
-
                 <div className="divide-y divide-white/[0.04]">
+                  {filteredStocks.map((stock) => (
+                    <StockRow
+                      key={stock.ticker}
+                      stock={stock}
+                    />
+                  ))}
 
-                  {filteredStocks.map(
-                    (stock) => (
-                      <StockRow
-                        key={
-                          stock.ticker
-                        }
-                        stock={stock}
-                      />
-                    )
-                  )}
-
-                  {/* NO RESULTS */}
-
-                  {filteredStocks.length ===
-                    0 && (
+                  {filteredStocks.length === 0 && (
                     <div className="px-5 py-14 text-center">
                       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.03]">
                         <svg
@@ -563,12 +470,7 @@ export default function MarketsPageClient() {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         >
-                          <circle
-                            cx="11"
-                            cy="11"
-                            r="7"
-                          />
-
+                          <circle cx="11" cy="11" r="7" />
                           <path d="m20 20-3.5-3.5" />
                         </svg>
                       </div>
@@ -578,9 +480,8 @@ export default function MarketsPageClient() {
                       </p>
 
                       <p className="mt-1 text-xs text-slate-600">
-                        Try searching for a
-                        different company or
-                        ticker.
+                        Try searching for a different
+                        company or ticker.
                       </p>
                     </div>
                   )}
@@ -589,54 +490,31 @@ export default function MarketsPageClient() {
             </section>
           </>
         )}
-
-        {/* ===================================================
-            NOT LOADED YET
-        =================================================== */}
-
-        {!loading &&
-          !data &&
-          !error && (
-            <section className="rounded-2xl border border-white/[0.06] bg-[#0c0f13] p-8 text-center">
-              <p className="text-sm font-semibold text-slate-400">
-                Market data will load
-                shortly.
-              </p>
-
-              <p className="mt-2 text-xs text-slate-600">
-                Scroll down to load the
-                market universe.
-              </p>
-            </section>
-          )}
       </div>
     </main>
   );
 }
 
-/* =========================================================
-   MARKET LOADING SKELETON
-========================================================= */
+/*
+ * =========================================================
+ * MARKET LOADING SKELETON
+ * =========================================================
+ */
 
 function MarketLoadingSkeleton() {
   return (
     <section className="mt-8">
       <div className="animate-pulse">
-
-        {/* SUMMARY */}
-
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({
-            length: 4,
-          }).map((_, index) => (
-            <div
-              key={index}
-              className="h-32 rounded-2xl border border-white/[0.06] bg-white/[0.02]"
-            />
-          ))}
+          {Array.from({ length: 4 }).map(
+            (_, index) => (
+              <div
+                key={index}
+                className="h-32 rounded-2xl border border-white/[0.06] bg-white/[0.02]"
+              />
+            )
+          )}
         </div>
-
-        {/* MOVERS */}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <div className="h-72 rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
@@ -644,17 +522,17 @@ function MarketLoadingSkeleton() {
           <div className="h-72 rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
         </div>
 
-        {/* MARKET */}
-
         <div className="mt-8 h-[500px] rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
       </div>
     </section>
   );
 }
 
-/* =========================================================
-   MARKET CARD
-========================================================= */
+/*
+ * =========================================================
+ * MARKET CARD
+ * =========================================================
+ */
 
 function MarketCard({
   title,
@@ -676,9 +554,11 @@ function MarketCard({
   );
 }
 
-/* =========================================================
-   STOCK LIST
-========================================================= */
+/*
+ * =========================================================
+ * STOCK LIST
+ * =========================================================
+ */
 
 function StockList({
   title,
@@ -691,7 +571,6 @@ function StockList({
 }) {
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-[#0c0f13]">
-
       <div className="border-b border-white/[0.06] px-5 py-4">
         <h2 className="text-sm font-bold text-white">
           {title}
@@ -703,9 +582,7 @@ function StockList({
           <StockRow
             key={stock.ticker}
             stock={stock}
-            positiveOverride={
-              positive
-            }
+            positiveOverride={positive}
           />
         ))}
 
@@ -719,9 +596,11 @@ function StockList({
   );
 }
 
-/* =========================================================
-   STOCK ROW
-========================================================= */
+/*
+ * =========================================================
+ * STOCK ROW
+ * =========================================================
+ */
 
 function StockRow({
   stock,
@@ -736,9 +615,6 @@ function StockRow({
 
   return (
     <div className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-white/[0.02]">
-
-      {/* COMPANY */}
-
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-white">
           {stock.companyName}
@@ -749,13 +625,9 @@ function StockRow({
         </p>
       </div>
 
-      {/* PRICE */}
-
       <div className="shrink-0 text-right">
         <p className="text-sm font-semibold text-white">
-          {formatPrice(
-            stock.price
-          )}
+          {formatPrice(stock.price)}
         </p>
 
         <p
@@ -765,46 +637,39 @@ function StockRow({
               : "text-red-400"
           }`}
         >
-          {formatPercent(
-            stock.changePercent
-          )}
+          {formatPercent(stock.changePercent)}
         </p>
       </div>
     </div>
   );
 }
 
-/* =========================================================
-   FORMAT PRICE
-========================================================= */
+/*
+ * =========================================================
+ * FORMAT PRICE
+ * =========================================================
+ */
 
-function formatPrice(
-  price: number | null
-): string {
+function formatPrice(price: number | null): string {
   if (price === null) {
     return "—";
   }
 
-  return `₹${price.toLocaleString(
-    "en-IN",
-    {
-      maximumFractionDigits: 2,
-    }
-  )}`;
+  return `₹${price.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  })}`;
 }
 
-/* =========================================================
-   FORMAT PERCENT
-========================================================= */
+/*
+ * =========================================================
+ * FORMAT PERCENT
+ * =========================================================
+ */
 
-function formatPercent(
-  value: number | null
-): string {
+function formatPercent(value: number | null): string {
   if (value === null) {
     return "—";
   }
 
-  return `${value >= 0 ? "+" : ""}${value.toFixed(
-    2
-  )}%`;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }

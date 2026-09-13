@@ -9,4 +9,6 @@ export type {
 export type {
   AIAnalysisInput,
   AIAnalysisResult,
+  SectorAIAnalysisInput,
+  SectorAIAnalysisResult,
 } from "./types";

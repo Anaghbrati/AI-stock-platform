@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { updateSession } from "./src/lib/supabase/proxy";
-import { verifyPinSessionToken } from "./src/lib/security/pin";
+import { updateSession } from "./lib/supabase/proxy";
+import { verifyPinSessionToken } from "./lib/security/pin";
 
 const PIN_COOKIE_NAME = "pin_session";
 

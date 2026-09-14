@@ -80,8 +80,7 @@ export default function PinPage() {
         return;
       }
 
-      router.replace("/dashboard");
-      router.refresh();
+      window.location.assign("/dashboard");
     } catch {
       setError("Unable to connect to the security service.");
     } finally {

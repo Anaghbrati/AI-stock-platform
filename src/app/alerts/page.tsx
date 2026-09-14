@@ -1,13 +1,8 @@
+
 "use client";
 
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  useSearchParams,
-} from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import type { Alert } from "../../types/alert";
 
@@ -15,7 +10,7 @@ import DashboardShell from "../../components/dashboard/DashboardShell";
 import CreateAlertForm from "../../components/alerts/CreateAlertForm";
 import AlertCard from "../../components/alerts/AlertCard";
 
-export default function AlertsPage() {
+function AlertsContent() {
   const searchParams = useSearchParams();
 
   /*
@@ -28,25 +23,16 @@ export default function AlertsPage() {
   const tickerFromUrl =
     searchParams.get("ticker")?.trim().toUpperCase() ?? "";
 
-  const [alerts, setAlerts] =
-    useState<Alert[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [refreshing, setRefreshing] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // ==========================================================
   // LOAD ALERTS
   // ==========================================================
 
-  async function loadAlerts(
-    isRefresh = false
-  ) {
+  async function loadAlerts(isRefresh = false) {
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -56,38 +42,27 @@ export default function AlertsPage() {
 
       setError(null);
 
-      const response = await fetch(
-        "/api/alerts",
-        {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            Accept:
-              "application/json",
-          },
-        }
-      );
+      const response = await fetch("/api/alerts", {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+        },
+      });
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data?.error ||
-            "Failed to load alerts."
+          data?.error || "Failed to load alerts."
         );
       }
 
       setAlerts(
-        Array.isArray(data?.alerts)
-          ? data.alerts
-          : []
+        Array.isArray(data?.alerts) ? data.alerts : []
       );
     } catch (error) {
-      console.error(
-        "Load alerts error:",
-        error
-      );
+      console.error("Load alerts error:", error);
 
       setError(
         error instanceof Error
@@ -115,16 +90,12 @@ export default function AlertsPage() {
   useEffect(() => {
     async function processAlerts() {
       try {
-        await fetch(
-          "/api/alerts/process",
-          {
-            method: "POST",
-            headers: {
-              Accept:
-                "application/json",
-            },
-          }
-        );
+        await fetch("/api/alerts/process", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+          },
+        });
       } catch (error) {
         console.error(
           "Failed to process alerts:",
@@ -154,7 +125,6 @@ export default function AlertsPage() {
           </p>
 
           <div className="mt-1 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-
             <div>
               <h1 className="text-3xl font-black tracking-tight text-white">
                 Alerts
@@ -168,20 +138,12 @@ export default function AlertsPage() {
 
             <button
               type="button"
-              onClick={() =>
-                loadAlerts(true)
-              }
-              disabled={
-                refreshing ||
-                loading
-              }
+              onClick={() => loadAlerts(true)}
+              disabled={refreshing || loading}
               className="w-fit rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {refreshing
-                ? "Refreshing..."
-                : "Refresh"}
+              {refreshing ? "Refreshing..." : "Refresh"}
             </button>
-
           </div>
         </section>
 
@@ -191,9 +153,7 @@ export default function AlertsPage() {
 
         <CreateAlertForm
           ticker={tickerFromUrl}
-          onCreated={() =>
-            loadAlerts(true)
-          }
+          onCreated={() => loadAlerts(true)}
         />
 
         {/* =====================================================
@@ -210,9 +170,7 @@ export default function AlertsPage() {
             </p>
 
             <p className="mt-2 text-2xl font-black text-white">
-              {loading
-                ? "—"
-                : alerts.length}
+              {loading ? "—" : alerts.length}
             </p>
           </div>
 
@@ -245,12 +203,10 @@ export default function AlertsPage() {
               {loading
                 ? "—"
                 : alerts.filter(
-                    (alert) =>
-                      alert.is_triggered
+                    (alert) => alert.is_triggered
                   ).length}
             </p>
           </div>
-
         </section>
 
         {/* =====================================================
@@ -258,7 +214,6 @@ export default function AlertsPage() {
         ====================================================== */}
 
         <section>
-
           <div className="mb-4">
             <p className="text-sm text-slate-500">
               Your monitoring rules
@@ -273,51 +228,42 @@ export default function AlertsPage() {
 
           {loading && (
             <div className="space-y-3">
+              {[1, 2, 3].map((item) => (
+                <div
+                  key={item}
+                  className="animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318] p-5"
+                >
+                  <div className="h-4 w-32 rounded bg-white/[0.06]" />
 
-              {[1, 2, 3].map(
-                (item) => (
-                  <div
-                    key={item}
-                    className="animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318] p-5"
-                  >
-                    <div className="h-4 w-32 rounded bg-white/[0.06]" />
+                  <div className="mt-3 h-3 w-24 rounded bg-white/[0.04]" />
 
-                    <div className="mt-3 h-3 w-24 rounded bg-white/[0.04]" />
-
-                    <div className="mt-6 h-3 w-40 rounded bg-white/[0.04]" />
-                  </div>
-                )
-              )}
-
+                  <div className="mt-6 h-3 w-40 rounded bg-white/[0.04]" />
+                </div>
+              ))}
             </div>
           )}
 
           {/* ERROR */}
 
-          {!loading &&
-            error && (
-              <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.04] p-6">
+          {!loading && error && (
+            <div className="rounded-2xl border border-red-500/15 bg-red-500/[0.04] p-6">
+              <p className="text-sm font-semibold text-red-400">
+                Unable to load alerts
+              </p>
 
-                <p className="text-sm font-semibold text-red-400">
-                  Unable to load alerts
-                </p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                {error}
+              </p>
 
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  {error}
-                </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    loadAlerts()
-                  }
-                  className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
-                >
-                  Retry
-                </button>
-
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => loadAlerts()}
+                className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {/* EMPTY */}
 
@@ -325,7 +271,6 @@ export default function AlertsPage() {
             !error &&
             alerts.length === 0 && (
               <div className="rounded-2xl border border-dashed border-white/[0.08] bg-[#101318] p-10 text-center">
-
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-[#ff4d61]/15 bg-[#ff4d61]/10 text-xl text-[#ff6577]">
                   ◉
                 </div>
@@ -338,7 +283,6 @@ export default function AlertsPage() {
                   Create your first price or percentage-change
                   alert to start monitoring the market.
                 </p>
-
               </div>
             )}
 
@@ -348,25 +292,57 @@ export default function AlertsPage() {
             !error &&
             alerts.length > 0 && (
               <div className="space-y-3">
-
-                {alerts.map(
-                  (alert) => (
-                    <AlertCard
-                      key={alert.id}
-                      alert={alert}
-                      onUpdated={() =>
-                        loadAlerts(true)
-                      }
-                    />
-                  )
-                )}
-
+                {alerts.map((alert) => (
+                  <AlertCard
+                    key={alert.id}
+                    alert={alert}
+                    onUpdated={() => loadAlerts(true)}
+                  />
+                ))}
               </div>
             )}
-
         </section>
-
       </div>
     </DashboardShell>
+  );
+}
+
+function AlertsLoading() {
+  return (
+    <DashboardShell>
+      <div className="space-y-8">
+        <section>
+          <div className="h-4 w-48 animate-pulse rounded bg-white/[0.06]" />
+          <div className="mt-3 h-9 w-32 animate-pulse rounded bg-white/[0.06]" />
+          <div className="mt-3 h-4 w-full max-w-2xl animate-pulse rounded bg-white/[0.04]" />
+        </section>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className="h-28 animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318]"
+            />
+          ))}
+        </div>
+
+        <div className="space-y-3">
+          {[1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className="h-28 animate-pulse rounded-2xl border border-white/[0.06] bg-[#101318]"
+            />
+          ))}
+        </div>
+      </div>
+    </DashboardShell>
+  );
+}
+
+export default function AlertsPage() {
+  return (
+    <Suspense fallback={<AlertsLoading />}>
+      <AlertsContent />
+    </Suspense>
   );
 }
